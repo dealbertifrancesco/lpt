@@ -1,0 +1,99 @@
+---
+title: "Introduction to lpt: Lipschitz Parallel Trends"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to lpt: Lipschitz Parallel Trends}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+## Overview
+
+The `lpt` package implements partial identification for continuous
+difference-in-differences (DiD) designs under Lipschitz Parallel Trends.
+
+In standard continuous DiD, the observable dose-slope decomposes as:
+
+$$\lambda(d) = \frac{\partial ATT(d|d)}{\partial d} + \mu'(d)$$
+
+where $\lambda(d)$ is identified from data but the selection slope $\mu'(d)$
+is not. Under the Lipschitz Parallel Trends assumption, $|\mu'(d)| \leq B$,
+which yields identified sets:
+
+- **Derivative:** $IS_{\partial ATT}(d; B) = [\lambda(d) - B, \lambda(d) + B]$
+- **Level:** $IS_{ATT}(d; B) = [\Lambda(d) - Bd, \Lambda(d) + Bd]$
+- **Overall:** $IS_{ATT^o}(B) = [ATT^o_{bin} - B\bar{D}_+, ATT^o_{bin} + B\bar{D}_+]$
+
+where $\Lambda(d) = E[\Delta Y | D=d] - E[\Delta Y | D=0]$.
+
+## Example: French Social Housing (SRU Law)
+
+The bundled `sru` dataset contains panel data on 991 French communes
+affected by the 2000 Solidarity and Urban Renewal (SRU) law.
+
+```{r data}
+library(lpt)
+data(sru)
+str(sru)
+```
+
+### Standard Parallel Trends (B = 0)
+
+Setting $B = 0$ recovers standard DiD --- point identification:
+
+```{r b0}
+fit0 <- lpt(sru, "commune", "year", "outcome", "dose",
+            post_period = 2019, pre_periods = 1993:1999, B = 0)
+fit0
+```
+
+### Calibrated B from Pre-Periods
+
+The sensitivity parameter $B$ can be calibrated from pre-treatment selection
+slopes $\hat{\mu}'_s(d)$:
+
+```{r bcal, message = FALSE}
+fit <- lpt(sru, "commune", "year", "outcome", "dose",
+           post_period = 2019, pre_periods = 1993:1999,
+           B = "calibrate")
+summary(fit)
+```
+
+### Visualizations
+
+```{r plots, fig.width = 8, fig.height = 5, message = FALSE}
+library(ggplot2)
+
+# Dose-response slope identified set
+plot(fit, type = "datt")
+
+# ATT level identified set
+plot(fit, type = "att")
+
+# Pre-period selection slopes
+plot(fit, type = "pretrends")
+
+# Sensitivity analysis
+plot(fit, type = "sensitivity")
+```
+
+### Sensitivity Analysis
+
+Run over a grid of B values:
+
+```{r sensitivity, message = FALSE}
+B_grid <- seq(0, 0.5, by = 0.05)
+fit_sens <- lpt(sru, "commune", "year", "outcome", "dose",
+                post_period = 2019, pre_periods = 1993:1999,
+                B = B_grid)
+summary(fit_sens)
+```

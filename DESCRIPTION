@@ -1,0 +1,25 @@
+Package: lpt
+Type: Package
+Title: Lipschitz Parallel Trends for Continuous Difference-in-Differences
+Version: 0.1.0
+Authors@R: person("Francesco", "Dealberti", email = "dealberti.francesco@gmail.com", role = c("aut", "cre"))
+Description: Implements partial identification under Lipschitz Parallel Trends
+    for continuous difference-in-differences designs. Bounds the selection slope
+    mu'(d) by a sensitivity parameter B, yielding identified sets for the
+    dose-response derivative and ATT level effects. Estimation uses penalized
+    regression splines via mgcv. See Dealberti (2026) for methodological details.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.3.3
+Depends: R (>= 4.0.0)
+Imports:
+    mgcv,
+    stats
+Suggests:
+    ggplot2,
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown
+Config/testthat/edition: 3
+VignetteBuilder: knitr

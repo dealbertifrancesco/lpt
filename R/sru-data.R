@@ -1,0 +1,37 @@
+#' French Social Housing Data (SRU Law)
+#'
+#' Panel data on French communes affected by the Solidarity and Urban
+#' Renewal (SRU) law of 2000, which imposed a 20% social housing target.
+#' Communes below the threshold faced continuous treatment intensity
+#' proportional to their gap from the target.
+#'
+#' @format A data frame with 26,757 rows and 4 columns:
+#' \describe{
+#'   \item{commune}{Character. Commune geographic identifier (2022 boundaries).}
+#'   \item{year}{Integer. Calendar year (1993--2019).}
+#'   \item{outcome}{Numeric. Social housing share, standardized to 1999 baseline.}
+#'   \item{dose}{Numeric. Treatment intensity: 0 for never-treated communes,
+#'     gap from 20\% target (normalized to [0,1]) for the 2000 SRU cohort.
+#'     Time-invariant.}
+#' }
+#'
+#' @details
+#' The sample contains 991 communes: 358 treated (SRU cohort 2000)
+#' and 633 never-treated controls. Pre-treatment periods are 1993--1999;
+#' post-treatment periods are 2000--2019.
+#'
+#' Recommended usage with \code{\link{lpt}}:
+#' \preformatted{
+#' data(sru)
+#' fit <- lpt(sru, "commune", "year", "outcome", "dose",
+#'            post_period = 2019, pre_periods = 1993:1999,
+#'            B = "calibrate")
+#' }
+#'
+#' @source Dealberti (2026). Lipschitz Parallel Trends for Continuous
+#'   Difference-in-Differences.
+#'
+#' @name sru
+#' @docType data
+#' @usage data(sru)
+NULL

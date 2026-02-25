@@ -1,0 +1,31 @@
+# R artifacts
+.Rhistory
+.Rdata
+.RData
+.Ruserdata
+*.Rproj.user
+.Rproj.user/
+.httr-oauth
+
+# Build artifacts
+*.o
+*.so
+*.dll
+*.tar.gz
+*.Rcheck/
+inst/doc
+
+# Local non-package files
+_local/
+docs/
+
+# Generated plots
+*.pdf
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+*.Rproj
