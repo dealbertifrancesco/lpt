@@ -23,14 +23,15 @@ where $\lambda(d)$ is identified from data but the **selection slope** $\mu'(d)$
 is not. Under the **Local Parallel Trends** assumption $|\mu'(d)| \leq B$,
 this yields identified sets for three estimands:
 
-| Estimand | Identified set |
-|----------|---------------|
-| $\partial ATT(d\|d)/\partial d$ | $[\lambda(d) - B,\ \lambda(d) + B]$ |
-| $ATT(d\|d)$ | $[\Lambda(d) - Bd,\ \Lambda(d) + Bd]$ |
-| $ATT^o$ (overall) | $[ATT^o_{bin} - B\bar{D}_+,\ ATT^o_{bin} + B\bar{D}_+]$ |
+$$IS_{\partial ATT}(d;\,B) = [\,\lambda(d) - B,\ \lambda(d) + B\,]$$
 
-where $\Lambda(d) = E[\Delta Y \mid D=d] - E[\Delta Y \mid D=0]$ and
-$ATT^o_{bin} = E[\Delta Y \mid D>0] - E[\Delta Y \mid D=0]$.
+$$IS_{ATT}(d;\,B) = [\,\Lambda(d) - Bd,\ \Lambda(d) + Bd\,]$$
+
+$$IS_{ATT^o}(B) = [\,\tilde\Lambda_+ - B\bar{D}_+,\ \tilde\Lambda_+ + B\bar{D}_+\,]$$
+
+where $\Lambda(d) = E[\Delta Y \mid D=d] - E[\Delta Y \mid D=0]$,
+$\tilde\Lambda_+ = E[\Delta Y \mid D>0] - E[\Delta Y \mid D=0]$, and
+$\bar{D}_+ = E[D \mid D>0]$.
 
 The parameter $B$ governs how far from standard parallel trends the
 selection process is allowed to deviate. Setting $B = 0$ recovers point
