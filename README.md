@@ -27,7 +27,7 @@ this yields identified sets for three estimands:
 |----------|---------------|
 | $\partial ATT(d\|d)/\partial d$ | $[\lambda(d) - B,\ \lambda(d) + B]$ |
 | $ATT(d\|d)$ | $[\Lambda(d) - Bd,\ \Lambda(d) + Bd]$ |
-| $ATT^o$ (overall) | $[ATT^o - B\bar{D}_+,\ ATT^o + B\bar{D}_+]$ |
+| $ATT^o$ (overall) | $[ATT^o_{bin} - B\bar{D}_+,\ ATT^o_{bin} + B\bar{D}_+]$ |
 
 where $\Lambda(d) = E[\Delta Y \mid D=d] - E[\Delta Y \mid D=0]$ and
 $ATT^o_{bin} = E[\Delta Y \mid D>0] - E[\Delta Y \mid D=0]$.
