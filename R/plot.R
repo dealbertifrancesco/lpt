@@ -259,7 +259,7 @@ plot_sensitivity <- function(x, d0, B_grid, col_band, col_line, col_marker,
       ci_upper = center_val + B_grid + z_alpha * se_val
     )
     y_label    <- expression(partialdiff * ATT(d) / partialdiff * d ~ "at" ~ d[0])
-    plot_title <- sprintf("Sensitivity of dATT at d = %.2f", d0_actual)
+    plot_title <- sprintf("Sensitivity: Dose-Response Slope at d = %.2f", d0_actual)
     show_ci    <- TRUE
 
   } else if (estimand == "att") {
@@ -288,7 +288,7 @@ plot_sensitivity <- function(x, d0, B_grid, col_band, col_line, col_marker,
       ci_upper = NA_real_
     )
     y_label    <- expression(ATT(d[0]))
-    plot_title <- sprintf("Sensitivity of ATT at d = %.2f", d0_actual)
+    plot_title <- sprintf("Sensitivity: ATT(d|d) at d = %.2f", d0_actual)
     show_ci    <- FALSE
 
   } else {
@@ -315,7 +315,7 @@ plot_sensitivity <- function(x, d0, B_grid, col_band, col_line, col_marker,
       ci_upper = NA_real_
     )
     y_label    <- expression(ATT^o)
-    plot_title <- "Sensitivity of Overall ATT"
+    plot_title <- "Sensitivity: Overall ATT"
     show_ci    <- FALSE
   }
 
