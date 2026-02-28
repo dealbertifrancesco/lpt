@@ -1,8 +1,8 @@
 ---
-title: "Introduction to lpt: Lipschitz Parallel Trends"
+title: "Introduction to lpt: Local Parallel Trends"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Introduction to lpt: Lipschitz Parallel Trends}
+  %\VignetteIndexEntry{Introduction to lpt: Local Parallel Trends}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -19,14 +19,14 @@ knitr::opts_chunk$set(
 ## Overview
 
 The `lpt` package implements partial identification for continuous
-difference-in-differences (DiD) designs under Lipschitz Parallel Trends.
+difference-in-differences (DiD) designs under Local Parallel Trends.
 
 In standard continuous DiD, the observable dose-slope decomposes as:
 
 $$\lambda(d) = \frac{\partial ATT(d|d)}{\partial d} + \mu'(d)$$
 
 where $\lambda(d)$ is identified from data but the selection slope $\mu'(d)$
-is not. Under the Lipschitz Parallel Trends assumption, $|\mu'(d)| \leq B$,
+is not. Under the Local Parallel Trends assumption, $|\mu'(d)| \leq B$,
 which yields identified sets:
 
 - **Derivative:** $IS_{\partial ATT}(d; B) = [\lambda(d) - B, \lambda(d) + B]$

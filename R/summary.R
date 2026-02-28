@@ -17,7 +17,7 @@ print.lpt <- function(x, ...) {
             paste(x$post_periods, collapse = ", "))
   }
   cat(sprintf(
-    "Lipschitz Parallel Trends (lpt) | n = %d | B = %.4f (%s) | Post: %s\n",
+    "Local Parallel Trends (lpt) | n = %d | B = %.4f (%s) | Post: %s\n",
     x$n, x$B_hat, b_source, post_str
   ))
   invisible(x)
@@ -39,7 +39,7 @@ summary.lpt <- function(object, ...) {
   }
 
   rule()
-  cat("  Lipschitz Parallel Trends Summary\n")
+  cat("  Local Parallel Trends Summary\n")
   rule()
 
   # --- B information ---

@@ -1,7 +1,7 @@
 #' Compute ATT level bounds
 #'
-#' Computes the identified set for \eqn{ATT(d|d)} under Lipschitz
-#' Parallel Trends: \eqn{IS_{ATT}(d; B) = [\Lambda(d) - Bd, \Lambda(d) + Bd]}.
+#' Computes the identified set for \eqn{ATT(d|d)} under Local Parallel Trends:
+#' \eqn{IS_{ATT}(d; B) = [\Lambda(d) - Bd, \Lambda(d) + Bd]}.
 #'
 #' @param slope_result Output from \code{\link{estimate_dose_slope}}.
 #' @param B_values Numeric vector of sensitivity parameter values.

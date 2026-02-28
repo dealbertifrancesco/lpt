@@ -48,10 +48,10 @@ A list with components:
   }
 }
 \description{
-Estimates the Lipschitz bound B by computing dose-response slopes in each
-consecutive pre-period pair and taking the maximum supremum. In pre-periods
-there is no treatment effect, so \eqn{\lambda(d) = \mu'(d)} directly
-measures the selection slope.
+Estimates the sensitivity parameter B (a Lipschitz bound on the selection
+slope) by computing dose-response slopes in each consecutive pre-period pair
+and taking the maximum supremum. In pre-periods there is no treatment effect,
+so \eqn{\lambda(d) = \mu'(d)} directly measures the selection slope.
 }
 \examples{
 data(sru)

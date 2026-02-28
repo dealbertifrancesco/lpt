@@ -20,7 +20,7 @@ A data frame with columns: \code{period}, \code{d},
   \code{Lambda_d}, \code{B}, \code{att_lower}, \code{att_upper}.
 }
 \description{
-Computes the identified set for \eqn{ATT(d|d)} under Lipschitz
-Parallel Trends: \eqn{IS_{ATT}(d; B) = [\Lambda(d) - Bd, \Lambda(d) + Bd]}.
+Computes the identified set for \eqn{ATT(d|d)} under Local Parallel Trends:
+\eqn{IS_{ATT}(d; B) = [\Lambda(d) - Bd, \Lambda(d) + Bd]}.
 }
 \keyword{internal}

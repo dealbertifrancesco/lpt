@@ -28,7 +28,7 @@
 #'            B = "calibrate")
 #' }
 #'
-#' @source Dealberti (2026). Lipschitz Parallel Trends for Continuous
+#' @source Dealberti (2026). Local Parallel Trends for Continuous
 #'   Difference-in-Differences.
 #'
 #' @name sru

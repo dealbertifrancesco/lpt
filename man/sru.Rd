@@ -16,7 +16,7 @@ A data frame with 26,757 rows and 4 columns:
 }
 }
 \source{
-Dealberti (2026). Lipschitz Parallel Trends for Continuous
+Dealberti (2026). Local Parallel Trends for Continuous
   Difference-in-Differences.
 }
 \usage{

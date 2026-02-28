@@ -2,7 +2,7 @@
 % Please edit documentation in R/lpt.R
 \name{lpt}
 \alias{lpt}
-\title{Lipschitz Parallel Trends estimation}
+\title{Local Parallel Trends estimation}
 \usage{
 lpt(
   data,
@@ -83,7 +83,7 @@ An S3 object of class \code{"lpt"} containing:
 }
 \description{
 Estimates identified sets for \eqn{\partial ATT(d|d)/\partial d} and
-\eqn{ATT(d|d)} under the Lipschitz Parallel Trends assumption in
+\eqn{ATT(d|d)} under the Local Parallel Trends assumption in
 continuous difference-in-differences designs.
 }
 \details{

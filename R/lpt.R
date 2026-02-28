@@ -1,7 +1,7 @@
-#' Lipschitz Parallel Trends estimation
+#' Local Parallel Trends estimation
 #'
 #' Estimates identified sets for \eqn{\partial ATT(d|d)/\partial d} and
-#' \eqn{ATT(d|d)} under the Lipschitz Parallel Trends assumption in
+#' \eqn{ATT(d|d)} under the Local Parallel Trends assumption in
 #' continuous difference-in-differences designs.
 #'
 #' @param data Data frame in long format with unit, time, outcome, and dose columns.

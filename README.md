@@ -3,7 +3,7 @@
 R package for partial identification in continuous difference-in-differences
 designs under Local Parallel Trends (LPT).
 
-> Dealberti (2026). *Lipschitz Parallel Trends for Continuous
+> Dealberti (2026). *Local Parallel Trends for Continuous
 > Difference-in-Differences.*
 
 ## Installation
@@ -20,7 +20,7 @@ In continuous DiD, the observable dose-slope decomposes as:
 $$\lambda(d) = \frac{\partial ATT(d|d)}{\partial d} + \mu'(d)$$
 
 where $\lambda(d)$ is identified from data but the **selection slope** $\mu'(d)$
-is not. Under the **Lipschitz Parallel Trends** assumption $|\mu'(d)| \leq B$,
+is not. Under the **Local Parallel Trends** assumption $|\mu'(d)| \leq B$,
 this yields identified sets for three estimands:
 
 | Estimand | Identified set |
@@ -117,15 +117,6 @@ fit_multi <- lpt(sru, "commune", "year", "outcome", "dose",
 plot(fit_multi, type = "datt")   # faceted by period
 ```
 
-## Overlaying the True Curve (Simulations)
-
-```r
-fit_sim <- lpt(sim_data, "id", "t", "y", "d",
-               post_period = 2, B = 0)
-plot(fit_sim, type = "datt",
-     true_curve = function(d) 2 * d)   # overlay known truth
-```
-
 ## B Calibration Details
 
 When `B = "calibrate"`, the package estimates $\mu'(d)$ in each consecutive
@@ -141,7 +132,7 @@ these slopes with $\pm\hat{B}$ bands.
 
 ## References
 
-Dealberti, F. (2026). Lipschitz Parallel Trends for Continuous
+Dealberti, F. (2026). Local Parallel Trends for Continuous
 Difference-in-Differences.
 
 ## AI Use Acknowledgment
