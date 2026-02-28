@@ -1,7 +1,7 @@
-# lpt: Lipschitz Parallel Trends
+# lpt: Local Parallel Trends
 
 R package for partial identification in continuous difference-in-differences
-designs under Lipschitz Parallel Trends (LPT).
+designs under Local Parallel Trends (LPT).
 
 > Dealberti (2026). *Lipschitz Parallel Trends for Continuous
 > Difference-in-Differences.*
