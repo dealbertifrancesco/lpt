@@ -23,11 +23,11 @@ where $\lambda(d)$ is identified from data but the **selection slope** $\mu'(d)$
 is not. Under the **Local Parallel Trends** assumption $|\mu'(d)| \leq B$,
 this yields identified sets for three estimands:
 
-$$IS_{\partial ATT}(d;\,B) = [\,\lambda(d) - B,\ \lambda(d) + B\,]$$
+$$IS_{\partial ATT}(d;\,B) = [\lambda(d) - B,\ \lambda(d) + B]$$
 
-$$IS_{ATT}(d;\,B) = [\,\Lambda(d) - Bd,\ \Lambda(d) + Bd\,]$$
+$$IS_{ATT}(d;\,B) = [\Lambda(d) - Bd,\ \Lambda(d) + Bd]$$
 
-$$IS_{ATT^o}(B) = [\,\tilde\Lambda_+ - B\bar{D}_+,\ \tilde\Lambda_+ + B\bar{D}_+\,]$$
+$$IS_{ATT^o}(B) = [\tilde\Lambda_+ - B\bar{D}_+,\ \tilde\Lambda_+ + B\bar{D}_+]$$
 
 where $\Lambda(d) = E[\Delta Y \mid D=d] - E[\Delta Y \mid D=0]$,
 $\tilde\Lambda_+ = E[\Delta Y \mid D>0] - E[\Delta Y \mid D=0]$, and
