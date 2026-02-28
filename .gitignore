@@ -29,3 +29,6 @@ Thumbs.db
 # IDE
 .vscode/
 *.Rproj
+
+# Claude Code local settings
+.claude/

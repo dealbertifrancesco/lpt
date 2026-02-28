@@ -10,6 +10,7 @@
   period = NULL,
   d0 = NULL,
   B_grid = NULL,
+  estimand = c("att_o", "datt", "att"),
   true_curve = NULL,
   ...
 )
@@ -23,11 +24,19 @@
 \item{period}{Scalar or NULL. Which post-period to plot. If NULL and
 multiple post-periods exist, plots all periods faceted. Default: NULL.}
 
-\item{d0}{Numeric or NULL. Dose value for the sensitivity plot.
-Default: median of evaluation grid.}
+\item{d0}{Numeric. Required dose value when \code{estimand} is \code{"datt"}
+or \code{"att"}. The identified set for these estimands depends on the
+chosen dose level; no default is provided. Ignored when
+\code{estimand = "att_o"}.}
 
 \item{B_grid}{Numeric vector or NULL. Grid of B values for sensitivity plot.
-Default: \code{seq(0, 2 * B_hat, length.out = 50)}.}
+Default: \code{seq(0, 3 * B_hat, length.out = 50)}.}
+
+\item{estimand}{Character. Estimand for the sensitivity plot:
+\code{"att_o"} (default, overall ATT \eqn{ATT^o}; no \code{d0} needed),
+\code{"datt"} (dose-response slope \eqn{\partial ATT/\partial d} at
+\code{d0}), or \code{"att"} (ATT level \eqn{ATT(d|d)} at \code{d0}).
+Only used when \code{type = "sensitivity"}.}
 
 \item{true_curve}{Function or NULL. If provided, a function \code{f(d)} that
 returns the true value at dose \code{d}, overlaid as a dashed black line.
