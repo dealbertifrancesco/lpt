@@ -9,8 +9,8 @@ designs under Local Parallel Trends (LPT).
 ## Installation
 
 ```r
-# Install from local source
-devtools::install("path/to/lpt")
+# Install from GitHub
+remotes::install_github("dealbertifrancesco/lpt")
 ```
 
 ## Overview
