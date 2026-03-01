@@ -227,9 +227,10 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
       )
     }
 
-    # IS_{ATT}(d; B) = [Lambda(d) - Bd, Lambda(d) + Bd]
+    # IS_{ATT}(d; B) = [Lambda(d,t) - t*B*d, Lambda(d,t) + t*B*d]
     if (has_untreated) {
-      att_pp <- compute_att_bounds(sr, B_values, dose_vec, period = pp)
+      t_val  <- t_values[[pp_char]]
+      att_pp <- compute_att_bounds(sr, B_values, dose_vec, period = pp, t = t_val)
       att_all[[length(att_all) + 1]] <- att_pp
     }
 
