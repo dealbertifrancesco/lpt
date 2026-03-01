@@ -114,6 +114,13 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
     ref_period <- max(pre_period_set)
   }
 
+  # Compute t (# time increments from ref to each post-period) from data
+  all_times_sorted <- sort(unique(data[[time_col]]))
+  t_values <- vapply(post_periods, function(pp) {
+    sum(all_times_sorted > ref_period & all_times_sorted <= pp)
+  }, integer(1L))
+  names(t_values) <- as.character(post_periods)
+
   if (length(pre_period_set) < 1) {
     stop("Need at least one pre-period before the earliest post-period.")
   }
@@ -284,6 +291,7 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
       has_untreated = has_untreated,
       post_periods = post_periods,
       ref_period = ref_period,
+      t_values = t_values,          # NEW: t multiplier per post-period
       specifications = list(
         k = k, spline_bs = spline_bs, alpha = alpha,
         post_periods = post_periods, ref_period = ref_period
