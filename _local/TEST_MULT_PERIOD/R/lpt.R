@@ -212,24 +212,26 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
     lambda_d <- sr$lambda_d
     se_lambda <- sr$se_lambda
 
-    # IS_{dATT}(d; B) = [lambda(d) - B, lambda(d) + B]
+    # IS_{dATT_t}(d; B) = [lambda(d,t) - t*B, lambda(d,t) + t*B]
+    t_val <- t_values[[pp_char]]
+
     for (b in B_values) {
       datt_all[[length(datt_all) + 1]] <- data.frame(
-        period = pp,
-        d = ep,
-        lambda_d = lambda_d,
+        period    = pp,
+        d         = ep,
+        lambda_d  = lambda_d,
         se_lambda = se_lambda,
-        B = b,
-        datt_lower = lambda_d - b,
-        datt_upper = lambda_d + b,
-        ci_lower = lambda_d - b - z_alpha * se_lambda,
-        ci_upper = lambda_d + b + z_alpha * se_lambda
+        B         = b,
+        t         = t_val,
+        datt_lower = lambda_d - t_val * b,
+        datt_upper = lambda_d + t_val * b,
+        ci_lower   = lambda_d - t_val * b - z_alpha * se_lambda,
+        ci_upper   = lambda_d + t_val * b + z_alpha * se_lambda
       )
     }
 
     # IS_{ATT}(d; B) = [Lambda(d,t) - t*B*d, Lambda(d,t) + t*B*d]
     if (has_untreated) {
-      t_val  <- t_values[[pp_char]]
       att_pp <- compute_att_bounds(sr, B_values, dose_vec, period = pp, t = t_val)
       att_all[[length(att_all) + 1]] <- att_pp
     }
@@ -255,12 +257,13 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
 
       for (b in B_values) {
         att_o_all[[length(att_o_all) + 1]] <- data.frame(
-          period = pp,
+          period    = pp,
           att_o_bin = att_o_bin,
-          D_bar = D_bar,
-          B = b,
-          att_o_lower = att_o_bin - b * D_bar,
-          att_o_upper = att_o_bin + b * D_bar
+          D_bar     = D_bar,
+          B         = b,
+          t         = t_val,
+          att_o_lower = att_o_bin - t_val * b * D_bar,
+          att_o_upper = att_o_bin + t_val * b * D_bar
         )
       }
     }
