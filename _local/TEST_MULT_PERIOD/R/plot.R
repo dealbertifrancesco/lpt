@@ -215,8 +215,72 @@ plot_pretrends <- function(x, col_pretrend, col_marker) {
 }
 
 
+plot_sensitivity_rm <- function(x, d0, B_grid, col_band, col_line, col_marker,
+                                 estimand = "att_o", period = NULL) {
+  # RM-Time sensitivity: x-axis is M_bar; IS = [att_o_bin +/- t * M * delta_bar_star]
+  if (estimand != "att_o") {
+    stop("For pure RM-Time sensitivity (B=0), only estimand = 'att_o' is supported.")
+  }
+  if (is.null(x$att_o)) {
+    stop("ATT^o bounds not available (no untreated units in data).")
+  }
+
+  pp    <- if (is.null(period)) x$post_periods[1] else period
+  t_val <- x$t_values[[as.character(pp)]]
+  M_hat <- x$specifications$M_bar
+
+  att_o_pp <- x$att_o[x$att_o$period == pp & x$att_o$B == 0, ]
+  if (nrow(att_o_pp) == 0) {
+    stop("No ATT^o data for period ", pp, " with B = 0.")
+  }
+  center_val <- att_o_pp$att_o_bin[1]
+
+  # Recover delta_bar_star_pre from stored bounds (valid since B=0 means RM only)
+  hw_stored      <- (att_o_pp$att_o_upper[1] - att_o_pp$att_o_lower[1]) / 2
+  if (t_val > 0 && M_hat > 0) {
+    delta_bar_star <- hw_stored / (t_val * M_hat)
+  } else {
+    delta_bar_star <- 0
+  }
+
+  M_grid  <- seq(0, 3 * max(M_hat, 1e-6), length.out = 50)
+  sens_df <- data.frame(
+    M_bar    = M_grid,
+    is_lower = center_val - t_val * M_grid * delta_bar_star,
+    is_upper = center_val + t_val * M_grid * delta_bar_star
+  )
+
+  ggplot2::ggplot(sens_df, ggplot2::aes(x = .data$M_bar)) +
+    ggplot2::geom_ribbon(
+      ggplot2::aes(ymin = .data$is_lower, ymax = .data$is_upper),
+      fill = col_band, alpha = 0.35
+    ) +
+    ggplot2::geom_hline(yintercept = center_val, color = col_line, linewidth = 0.6) +
+    ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "grey40") +
+    ggplot2::geom_vline(xintercept = M_hat, linetype = "dotted",
+                         color = col_marker, linewidth = 0.7) +
+    ggplot2::annotate("text", x = M_hat,
+                       y = max(sens_df$is_upper, na.rm = TRUE),
+                       label = expression(hat(M)[bar]),
+                       vjust = -0.5, hjust = -0.1, color = col_marker, size = 3.5) +
+    ggplot2::labs(
+      x = "M_bar",
+      y = expression(ATT^o),
+      title = sprintf("Sensitivity: ATT^o (RM-Time, t = %d)", t_val)
+    ) +
+    ggplot2::theme_minimal(base_size = 12)
+}
+
+
 plot_sensitivity <- function(x, d0, B_grid, col_band, col_line, col_marker,
                               estimand = "datt", period = NULL) {
+
+  # Dispatch to RM-Time helper when appropriate
+  tr <- x$specifications$time_restriction
+  if (!is.null(tr) && tr == "rm" && x$B_hat == 0) {
+    return(plot_sensitivity_rm(x, d0, B_grid, col_band, col_line, col_marker,
+                               estimand = estimand, period = period))
+  }
 
   # Select period
   pp <- if (is.null(period)) x$post_periods[1] else period
