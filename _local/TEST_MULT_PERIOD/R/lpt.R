@@ -79,7 +79,10 @@
 lpt <- function(data, id_col, time_col, outcome_col, dose_col,
                 post_period, pre_periods = NULL,
                 B = "calibrate", eval_points = NULL,
-                k = 20, spline_bs = "cr", alpha = 0.05) {
+                k = 20, spline_bs = "cr", alpha = 0.05,
+                time_restriction = c("none", "rm", "sd"),
+                M_bar = 1, B_t = 0) {
+  time_restriction <- match.arg(time_restriction)
 
   # --- Input validation ---
   if (!is.data.frame(data)) stop("data must be a data.frame.")
@@ -123,6 +126,20 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
 
   if (length(pre_period_set) < 1) {
     stop("Need at least one pre-period before the earliest post-period.")
+  }
+
+  # Validate time-restriction parameters
+  if (time_restriction == "rm") {
+    if (!is.numeric(M_bar) || length(M_bar) != 1 || M_bar <= 0)
+      stop("M_bar must be a positive numeric scalar.")
+    if (length(pre_period_set) < 2)
+      stop("time_restriction = 'rm' requires at least 2 pre-treatment periods.")
+  }
+  if (time_restriction == "sd") {
+    if (!is.numeric(B_t) || length(B_t) != 1 || B_t < 0)
+      stop("B_t must be a non-negative numeric scalar.")
+    if (length(pre_period_set) < 2)
+      stop("time_restriction = 'sd' requires at least 2 pre-treatment periods.")
   }
 
   # --- Extract reference-period data ---
@@ -202,6 +219,24 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
     stop("B must be numeric or 'calibrate'.")
   }
 
+  # Always run calibrate_B when time_restriction is active (need delta_tilde info)
+  if (time_restriction != "none" && is.null(calibration_result)) {
+    if (length(pre_period_set) < 2)
+      stop("time_restriction requires at least 2 pre-treatment periods.")
+    first_slope <- slopes[[1]]
+    calibration_result <- calibrate_B(
+      data        = data,
+      id_col      = id_col,
+      time_col    = time_col,
+      outcome_col = outcome_col,
+      dose_col    = dose_col,
+      pre_periods = pre_period_set,
+      eval_points = first_slope$eval_points,
+      k           = k,
+      spline_bs   = spline_bs
+    )
+  }
+
   # --- Construct identified sets per period ---
   z_alpha <- stats::qnorm(1 - alpha / 2)
 
@@ -230,14 +265,41 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
       )
     }
 
-    # IS_{ATT}(d; B) = [Lambda(d,t) - t*B*d, Lambda(d,t) + t*B*d]
+    # IS_{ATT}(d; B) with optional time restriction
     if (has_untreated) {
-      att_pp <- compute_att_bounds(sr, B_values, dose_vec, period = pp, t = t_val)
+      # Interpolate calibration-based time-restriction inputs to sr$eval_points
+      delta_star_pre_d <- NULL
+      delta_tilde_0_d  <- NULL
+      if (!is.null(calibration_result) && time_restriction != "none") {
+        sr_ep  <- sr$eval_points
+        if (time_restriction == "rm") {
+          dsp <- calibration_result$delta_star_pre
+          delta_star_pre_d <- stats::approx(dsp$d, dsp$delta_star_pre,
+                                            xout = sr_ep, rule = 2)$y
+        } else if (time_restriction == "sd") {
+          dt0 <- calibration_result$delta_tilde_0
+          delta_tilde_0_d <- stats::approx(dt0$d, dt0$delta_tilde_0,
+                                           xout = sr_ep, rule = 2)$y
+        }
+      }
+
+      att_pp <- compute_att_bounds(
+        slope_result     = sr,
+        B_values         = B_values,
+        dose             = dose_vec,
+        period           = pp,
+        t                = t_val,
+        time_restriction = time_restriction,
+        M_bar            = if (time_restriction == "rm") M_bar else NULL,
+        delta_star_pre_d = delta_star_pre_d,
+        B_t              = if (time_restriction == "sd") B_t else NULL,
+        delta_tilde_0_d  = delta_tilde_0_d
+      )
       att_all[[length(att_all) + 1]] <- att_pp
     }
 
-    # IS_{ATT^o}(B) = [ATT^o_bin - B * D_bar, ATT^o_bin + B * D_bar]
-    # (Corollary 1: overall ATT summary)
+    # IS_{ATT^o}(B) = [ATT^o_bin - t*B*D_bar, ATT^o_bin + t*B*D_bar]
+    # with optional time-restriction intersection
     if (has_untreated) {
       # Recompute delta_y for this period to get ATT^o_bin
       post_data <- data[data[[time_col]] == pp, ]
@@ -250,20 +312,73 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
             merged_atto[[paste0(outcome_col, "_ref")]]
       d_merged <- merged_atto[[dose_col]]
 
-      treated_idx <- d_merged > 0
+      treated_idx   <- d_merged > 0
       untreated_idx <- d_merged == 0
       att_o_bin <- mean(dy[treated_idx]) - mean(dy[untreated_idx])
-      D_bar <- mean(d_merged[treated_idx])
+      D_bar     <- mean(d_merged[treated_idx])
+
+      # Compute time-restriction scalars for ATT^o
+      delta_bar_star_pre <- NULL
+      if (time_restriction == "rm" && !is.null(calibration_result)) {
+        treat_d      <- d_merged[treated_idx]
+        dsp          <- calibration_result$delta_star_pre
+        dsp_at_treat <- stats::approx(dsp$d, dsp$delta_star_pre,
+                                      xout = treat_d, rule = 2)$y
+        delta_bar_star_pre <- mean(dsp_at_treat)
+      }
+
+      delta_tilde_0_bar <- NULL
+      if (time_restriction == "sd" && !is.null(calibration_result)) {
+        treat_d       <- d_merged[treated_idx]
+        dt0           <- calibration_result$delta_tilde_0
+        dt0_at_treat  <- stats::approx(dt0$d, dt0$delta_tilde_0,
+                                       xout = treat_d, rule = 2)$y
+        delta_tilde_0_bar <- mean(dt0_at_treat)
+      }
 
       for (b in B_values) {
+        # LPT bounds
+        lpt_atto_hw    <- t_val * b * D_bar
+        lpt_atto_lower <- att_o_bin - lpt_atto_hw
+        lpt_atto_upper <- att_o_bin + lpt_atto_hw
+
+        # Time-restriction bounds
+        if (time_restriction == "rm" && !is.null(delta_bar_star_pre)) {
+          rm_atto_hw    <- t_val * M_bar * delta_bar_star_pre
+          rm_atto_lower <- att_o_bin - rm_atto_hw
+          rm_atto_upper <- att_o_bin + rm_atto_hw
+          if (b > 0) {
+            final_lower <- max(lpt_atto_lower, rm_atto_lower)
+            final_upper <- min(lpt_atto_upper, rm_atto_upper)
+          } else {
+            final_lower <- rm_atto_lower
+            final_upper <- rm_atto_upper
+          }
+        } else if (time_restriction == "sd" && !is.null(delta_tilde_0_bar)) {
+          sd_atto_hw    <- B_t * t_val * (t_val + 1) / 2
+          sd_atto_ctr   <- att_o_bin - t_val * delta_tilde_0_bar
+          sd_atto_lower <- sd_atto_ctr - sd_atto_hw
+          sd_atto_upper <- sd_atto_ctr + sd_atto_hw
+          if (b > 0) {
+            final_lower <- max(lpt_atto_lower, sd_atto_lower)
+            final_upper <- min(lpt_atto_upper, sd_atto_upper)
+          } else {
+            final_lower <- sd_atto_lower
+            final_upper <- sd_atto_upper
+          }
+        } else {
+          final_lower <- lpt_atto_lower
+          final_upper <- lpt_atto_upper
+        }
+
         att_o_all[[length(att_o_all) + 1]] <- data.frame(
           period    = pp,
           att_o_bin = att_o_bin,
           D_bar     = D_bar,
           B         = b,
           t         = t_val,
-          att_o_lower = att_o_bin - t_val * b * D_bar,
-          att_o_upper = att_o_bin + t_val * b * D_bar
+          att_o_lower = final_lower,
+          att_o_upper = final_upper
         )
       }
     }
@@ -298,7 +413,9 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
       t_values = t_values,          # NEW: t multiplier per post-period
       specifications = list(
         k = k, spline_bs = spline_bs, alpha = alpha,
-        post_periods = post_periods, ref_period = ref_period
+        post_periods = post_periods, ref_period = ref_period,
+        time_restriction = time_restriction,
+        M_bar = M_bar, B_t = B_t
       )
     ),
     class = "lpt"
