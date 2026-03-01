@@ -70,11 +70,19 @@ calibrate_B <- function(data, id_col, time_col, outcome_col, dose_col,
                                          eval_points = eval_points,
                                          k = k, spline_bs = spline_bs)
 
+    # Compute delta_tilde_s(d) = E[DeltaY_s | D=d] - E[DeltaY_s | D=0]
+    gam_fit    <- slope_result$gam_fit
+    ep         <- slope_result$eval_points
+    pred_at_ep <- as.numeric(stats::predict(gam_fit, newdata = data.frame(dose = ep)))
+    pred_at_0  <- as.numeric(stats::predict(gam_fit, newdata = data.frame(dose = 0)))
+    delta_tilde_s <- pred_at_ep - pred_at_0
+
     slopes_df <- data.frame(
-      period_pair = pair_label,
-      d = slope_result$eval_points,
-      mu_prime_d = slope_result$lambda_d,
-      se = slope_result$se_lambda
+      period_pair   = pair_label,
+      d             = slope_result$eval_points,
+      mu_prime_d    = slope_result$lambda_d,
+      se            = slope_result$se_lambda,
+      delta_tilde_d = delta_tilde_s          # NEW
     )
     all_slopes[[j]] <- slopes_df
 
@@ -86,9 +94,25 @@ calibrate_B <- function(data, id_col, time_col, outcome_col, dose_col,
   rownames(pre_slopes) <- NULL
   names(sup_vals) <- pair_labels
 
+  # delta_star_pre(d) = max over all pre-period pairs of |delta_tilde_s(d)|
+  ep_vals <- unique(pre_slopes$d)
+  delta_star_vals <- vapply(ep_vals, function(dv) {
+    dt_at_d <- pre_slopes$delta_tilde_d[pre_slopes$d == dv]
+    max(abs(dt_at_d))
+  }, numeric(1L))
+  delta_star_pre <- data.frame(d = ep_vals, delta_star_pre = delta_star_vals)
+
+  # delta_tilde_0(d) = delta_tilde for the LAST pre-period pair
+  last_pair     <- pair_labels[length(pair_labels)]
+  dt0_df        <- pre_slopes[pre_slopes$period_pair == last_pair,
+                               c("d", "delta_tilde_d")]
+  delta_tilde_0 <- data.frame(d = dt0_df$d, delta_tilde_0 = dt0_df$delta_tilde_d)
+
   list(
-    B_hat = max(sup_vals),
-    pre_slopes = pre_slopes,
-    sup_by_period = sup_vals
+    B_hat          = max(sup_vals),
+    pre_slopes     = pre_slopes,
+    sup_by_period  = sup_vals,
+    delta_star_pre = delta_star_pre,  # NEW
+    delta_tilde_0  = delta_tilde_0    # NEW
   )
 }
