@@ -58,3 +58,43 @@ stopifnot(length(unique(cal_3_cum$pre_slopes$period_pair)) == 3)
 cat("  3-period case: C(3,2)=3 cumulative pairs. OK\n")
 
 cat("calibrate_B cumulative tests PASSED.\n")
+
+# ---- smooth mode tests ----
+
+# --- Test 7: smooth mode returns b0, C_hat, b_s_sequence ---
+cal_smooth <- calibrate_B(sru, "commune", "year", "outcome", "dose",
+                           pre_periods = 1993:1999, type = "smooth")
+stopifnot(is.numeric(cal_smooth$B_hat), cal_smooth$B_hat > 0)   # B_hat = b0
+stopifnot(cal_smooth$type == "smooth")
+stopifnot(is.numeric(cal_smooth$C_hat), cal_smooth$C_hat >= 0)
+stopifnot(is.numeric(cal_smooth$b_s_sequence))
+stopifnot(length(cal_smooth$b_s_sequence) == 6)  # 6 consecutive pairs for 7 pre-periods
+stopifnot(is.data.frame(cal_smooth$pre_slopes))
+stopifnot("period_pair" %in% names(cal_smooth$pre_slopes))
+cat(sprintf("  smooth: b0=%.4f, C_hat=%.4f, %d b_s values. OK\n",
+            cal_smooth$B_hat, cal_smooth$C_hat, length(cal_smooth$b_s_sequence)))
+
+# --- Test 8: b0 is the LAST entry in b_s_sequence (closest to treatment) ---
+stopifnot(cal_smooth$B_hat == cal_smooth$b_s_sequence[length(cal_smooth$b_s_sequence)])
+cat("  smooth: b0 == last b_s. OK\n")
+
+# --- Test 9: C_hat is max abs diff of consecutive b_s ---
+diffs <- abs(diff(cal_smooth$b_s_sequence))
+stopifnot(abs(cal_smooth$C_hat - max(diffs)) < 1e-12)
+cat("  smooth: C_hat == max|diff(b_s)|. OK\n")
+
+# --- Test 10: with 2 pre-periods, C_hat == 0 ---
+cal_2_smooth <- calibrate_B(sru, "commune", "year", "outcome", "dose",
+                              pre_periods = c(1998, 1999), type = "smooth")
+stopifnot(cal_2_smooth$C_hat == 0)
+stopifnot(length(cal_2_smooth$b_s_sequence) == 1)
+cat("  smooth, 2 pre-periods: C_hat = 0. OK\n")
+
+# --- Test 11: non-smooth types return NULL for C_hat and b_s_sequence ---
+stopifnot(is.null(cal_fd$C_hat))
+stopifnot(is.null(cal_fd$b_s_sequence))
+stopifnot(is.null(cal_cum$C_hat))
+stopifnot(is.null(cal_cum$b_s_sequence))
+cat("  non-smooth types: C_hat and b_s_sequence are NULL. OK\n")
+
+cat("calibrate_B smooth tests PASSED.\n")

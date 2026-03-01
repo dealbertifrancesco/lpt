@@ -1,13 +1,11 @@
 #' Calibrate the sensitivity parameter B from pre-treatment periods
 #'
-#' Estimates B by fitting dose-response slopes across pre-treatment differences.
-#' Two modes:
+#' Two modes for LPT-C and LPT-P; one mode for LPT-S.
 #' \itemize{
-#'   \item \code{"cumulative"} (for LPT-a): uses ALL cumulative differences
-#'     \eqn{Y_{t_1} - Y_{t_0}} for every ordered pair \eqn{t_0 < t_1} in
-#'     pre-treatment. This is C(n_pre, 2) pairs total.
-#'   \item \code{"first_diff"} (for LPT-b): uses consecutive first differences
-#'     \eqn{Y_s - Y_{s-1}} for adjacent pre-period pairs only.
+#'   \item \code{"cumulative"} (LPT-C): ALL C(n,2) ordered pairs.
+#'   \item \code{"first_diff"} (LPT-P): consecutive first differences only.
+#'   \item \code{"smooth"} (LPT-S): same fits as first_diff, plus extracts
+#'     b_0 (curvature at last pre-period) and C_hat (max change in curvature).
 #' }
 #'
 #' @param data Data frame in long format.
@@ -15,28 +13,27 @@
 #' @param time_col Character. Time period column.
 #' @param outcome_col Character. Outcome column.
 #' @param dose_col Character. Dose column.
-#' @param pre_periods Vector. Pre-treatment period identifiers (in order).
-#'   Must have at least 2 elements.
-#' @param eval_points Numeric vector or NULL. Dose grid for evaluation.
+#' @param pre_periods Vector. Pre-treatment period identifiers. At least 2.
+#' @param eval_points Numeric vector or NULL.
 #' @param k Integer. Spline basis dimension. Default: 5.
 #' @param spline_bs Character. Spline basis type. Default: \code{"cr"}.
-#' @param type Character. Calibration type: \code{"cumulative"} (default,
-#'   for LPT-a) or \code{"first_diff"} (for LPT-b).
+#' @param type Character. One of \code{"cumulative"} (default, LPT-C),
+#'   \code{"first_diff"} (LPT-P), \code{"smooth"} (LPT-S).
 #'
-#' @return A list with components:
+#' @return A list with:
 #'   \describe{
-#'     \item{B_hat}{Numeric. Calibrated sensitivity parameter.}
-#'     \item{pre_slopes}{Data frame with columns \code{period_pair},
-#'       \code{window_length}, \code{d}, \code{mu_prime_d}, \code{se}.}
-#'     \item{sup_by_period}{Named numeric vector of suprema.}
-#'     \item{type}{Character. The calibration type used.}
+#'     \item{B_hat}{Calibrated B (or b_0 for smooth).}
+#'     \item{C_hat}{NULL for cumulative/first_diff; Ĉ for smooth.}
+#'     \item{b_s_sequence}{NULL for cumulative/first_diff; named b_s vector for smooth.}
+#'     \item{pre_slopes}{Data frame of fitted slopes per pair.}
+#'     \item{sup_by_period}{Named vector of sup|mu'(d)| per pair.}
+#'     \item{type}{The calibration type used.}
 #'   }
-#'
 #' @export
 calibrate_B <- function(data, id_col, time_col, outcome_col, dose_col,
                          pre_periods, eval_points = NULL,
                          k = 5, spline_bs = "cr",
-                         type = c("cumulative", "first_diff")) {
+                         type = c("cumulative", "first_diff", "smooth")) {
 
   type <- match.arg(type)
   pre_periods <- sort(pre_periods)
@@ -44,107 +41,98 @@ calibrate_B <- function(data, id_col, time_col, outcome_col, dose_col,
     stop("Need at least 2 pre-treatment periods to calibrate B.")
   }
 
-  all_slopes <- list()
-  sup_vals <- numeric(0)
+  all_slopes  <- list()
+  sup_vals    <- numeric(0)
   pair_labels <- character(0)
 
   if (type == "cumulative") {
-    # LPT-a calibration: ALL ordered pairs (t0, t1) with t0 < t1 in pre_periods.
-    # For n_pre periods this gives C(n_pre, 2) pairs.
-    # Each pair estimates the slope of the cumulative trend mu(d, t1-t0),
-    # and we take the supremum over all pairs.
+    # LPT-C: ALL C(n,2) ordered pairs — estimates slope of cumulative mu(d,k)
     n <- length(pre_periods)
     for (i in seq_len(n - 1)) {
       for (j in seq(i + 1L, n)) {
-        t0 <- pre_periods[i]
-        t1 <- pre_periods[j]
-        window_len <- j - i   # number of period steps between t0 and t1
+        t0 <- pre_periods[i]; t1 <- pre_periods[j]
+        window_len <- j - i
         pair_label <- paste0(t0, "-", t1)
         pair_labels <- c(pair_labels, pair_label)
 
         dat_t0 <- data[data[[time_col]] == t0, ]
         dat_t1 <- data[data[[time_col]] == t1, ]
-
         merged <- merge(
           dat_t0[, c(id_col, outcome_col, dose_col), drop = FALSE],
           dat_t1[, c(id_col, outcome_col), drop = FALSE],
           by = id_col, suffixes = c("_early", "_late")
         )
-
-        # Cumulative diff: Y_t1 - Y_t0
         delta_y  <- merged[[paste0(outcome_col, "_late")]] -
                     merged[[paste0(outcome_col, "_early")]]
         dose_vec <- merged[[dose_col]]
 
-        slope_result <- estimate_dose_slope(delta_y, dose_vec,
-                                             eval_points = eval_points,
-                                             k = k, spline_bs = spline_bs)
+        sr <- estimate_dose_slope(delta_y, dose_vec,
+                                  eval_points = eval_points,
+                                  k = k, spline_bs = spline_bs)
+        if (is.null(eval_points)) eval_points <- sr$eval_points
 
-        if (is.null(eval_points)) eval_points <- slope_result$eval_points
-
-        slopes_df <- data.frame(
-          period_pair   = pair_label,
-          window_length = window_len,
-          d             = slope_result$eval_points,
-          mu_prime_d    = slope_result$lambda_d,
-          se            = slope_result$se_lambda
+        all_slopes[[length(all_slopes) + 1]] <- data.frame(
+          period_pair = pair_label, window_length = window_len,
+          d = sr$eval_points, mu_prime_d = sr$lambda_d, se = sr$se_lambda
         )
-        all_slopes[[length(all_slopes) + 1]] <- slopes_df
-
-        sup_val <- max(abs(slope_result$lambda_d))
-        sup_vals <- c(sup_vals, sup_val)
+        sup_vals <- c(sup_vals, max(abs(sr$lambda_d)))
       }
     }
+    names(sup_vals) <- pair_labels
+    pre_slopes <- do.call(rbind, all_slopes); rownames(pre_slopes) <- NULL
+    return(list(B_hat = max(sup_vals), C_hat = NULL, b_s_sequence = NULL,
+                pre_slopes = pre_slopes, sup_by_period = sup_vals, type = type))
 
   } else {
-    # LPT-b calibration: first differences Y_{s} - Y_{s-1} for consecutive pairs
+    # "first_diff" and "smooth": consecutive first-difference pairs
+    b_s_vec <- numeric(0)
+
     for (j in seq_len(length(pre_periods) - 1)) {
-      t0 <- pre_periods[j]
-      t1 <- pre_periods[j + 1]
+      t0 <- pre_periods[j]; t1 <- pre_periods[j + 1]
       pair_label <- paste0(t0, "-", t1)
       pair_labels <- c(pair_labels, pair_label)
 
       dat_t0 <- data[data[[time_col]] == t0, ]
       dat_t1 <- data[data[[time_col]] == t1, ]
-
       merged <- merge(
         dat_t0[, c(id_col, outcome_col, dose_col), drop = FALSE],
         dat_t1[, c(id_col, outcome_col), drop = FALSE],
         by = id_col, suffixes = c("_0", "_1")
       )
-
       delta_y  <- merged[[paste0(outcome_col, "_1")]] -
                   merged[[paste0(outcome_col, "_0")]]
       dose_vec <- merged[[dose_col]]
 
-      slope_result <- estimate_dose_slope(delta_y, dose_vec,
-                                           eval_points = eval_points,
-                                           k = k, spline_bs = spline_bs)
+      sr <- estimate_dose_slope(delta_y, dose_vec,
+                                eval_points = eval_points,
+                                k = k, spline_bs = spline_bs)
+      if (is.null(eval_points)) eval_points <- sr$eval_points
 
-      if (is.null(eval_points)) eval_points <- slope_result$eval_points
+      b_s <- max(abs(sr$lambda_d))
+      b_s_vec <- c(b_s_vec, b_s)
 
-      slopes_df <- data.frame(
-        period_pair   = pair_label,
-        window_length = 1L,
-        d             = slope_result$eval_points,
-        mu_prime_d    = slope_result$lambda_d,
-        se            = slope_result$se_lambda
+      all_slopes[[length(all_slopes) + 1]] <- data.frame(
+        period_pair = pair_label, window_length = 1L,
+        d = sr$eval_points, mu_prime_d = sr$lambda_d, se = sr$se_lambda
       )
-      all_slopes[[length(all_slopes) + 1]] <- slopes_df
-
-      sup_val <- max(abs(slope_result$lambda_d))
-      sup_vals <- c(sup_vals, sup_val)
+      sup_vals <- c(sup_vals, b_s)
     }
+    names(sup_vals) <- pair_labels
+    names(b_s_vec)  <- pair_labels
+    pre_slopes <- do.call(rbind, all_slopes); rownames(pre_slopes) <- NULL
+
+    if (type == "first_diff") {
+      return(list(B_hat = max(sup_vals), C_hat = NULL, b_s_sequence = NULL,
+                  pre_slopes = pre_slopes, sup_by_period = sup_vals, type = type))
+    }
+
+    # type == "smooth" (LPT-S)
+    # b0 = b_s at the last pre-period pair (s=0, closest to treatment)
+    b0    <- b_s_vec[length(b_s_vec)]
+    # C_hat = max change in max-curvature across consecutive pre-periods
+    C_hat <- if (length(b_s_vec) >= 2) max(abs(diff(b_s_vec))) else 0
+
+    return(list(B_hat = b0, C_hat = C_hat, b_s_sequence = b_s_vec,
+                pre_slopes = pre_slopes, sup_by_period = sup_vals, type = type))
   }
-
-  pre_slopes <- do.call(rbind, all_slopes)
-  rownames(pre_slopes) <- NULL
-  names(sup_vals) <- pair_labels
-
-  list(
-    B_hat         = max(sup_vals),
-    pre_slopes    = pre_slopes,
-    sup_by_period = sup_vals,
-    type          = type
-  )
 }
