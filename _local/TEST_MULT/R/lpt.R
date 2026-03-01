@@ -4,7 +4,7 @@
 lpt <- function(data, id_col, time_col, outcome_col, dose_col,
                 post_period, pre_periods = NULL,
                 B = "calibrate", eval_points = NULL,
-                k = 20, spline_bs = "cr", alpha = 0.05,
+                k = 5, spline_bs = "cr", alpha = 0.05,
                 lpt_type = c("a", "b")) {
 
   lpt_type <- match.arg(lpt_type)
