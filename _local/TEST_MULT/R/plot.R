@@ -218,124 +218,108 @@ plot_pretrends <- function(x, col_pretrend, col_marker) {
 plot_sensitivity <- function(x, d0, B_grid, col_band, col_line, col_marker,
                               estimand = "datt", period = NULL) {
 
-  pp <- if (is.null(period)) x$post_periods[1] else period
+  pp      <- if (is.null(period)) x$post_periods[1] else period
   pp_char <- as.character(pp)
-  sr <- x$slopes[[pp_char]]
-  ep <- sr$eval_points
+  sr      <- x$slopes[[pp_char]]
+  ep      <- sr$eval_points
+  lpt_t   <- x$lpt_type
+  t_idx   <- x$t_index_map[[pp_char]]
 
   if (estimand %in% c("datt", "att") && is.null(d0)) {
-    stop("'d0' must be specified when estimand = '", estimand, "'. ",
-         "Supply a dose value, e.g. d0 = ", round(stats::median(ep), 3), ".")
+    stop("'d0' must be specified when estimand = '", estimand, "'.",
+         " Supply e.g. d0 = ", round(stats::median(ep), 3), ".")
   }
 
-  if (is.null(B_grid)) {
-    if (x$B_hat > 0) {
-      B_grid <- seq(0, 3, length.out = 50) * x$B_hat
-    } else {
-      B_grid <- seq(0, 1, length.out = 50)
+  # --- Build sensitivity grid and effective multiplier vector ---
+  if (!is.null(lpt_t) && lpt_t == "S") {
+    # For LPT-S: vary C (hold b0 fixed at calibrated/supplied value).
+    # B_grid is interpreted as a C-grid.
+    b0_x  <- if (!is.null(x$b0)) x$b0 else 0
+    C_ref <- if (!is.null(x$C_hat) && x$C_hat > 0) x$C_hat else 1
+    if (is.null(B_grid)) B_grid <- seq(0, 3 * C_ref, length.out = 50)
+    phi_vec   <- t_idx * b0_x + B_grid * t_idx * (t_idx + 1) / 2
+    use_ratio <- !is.null(x$C_hat) && x$C_hat > 0
+    x_ratio   <- if (use_ratio) B_grid / x$C_hat else B_grid
+    x_label   <- if (use_ratio) expression(C / hat(C)) else "Sensitivity parameter C"
+    vline_label <- expression(hat(C))
+  } else {
+    # LPT-C and LPT-P
+    t_mult <- if (!is.null(lpt_t) && lpt_t == "P") t_idx else 1L
+    if (is.null(B_grid)) {
+      B_grid <- if (x$B_hat > 0) seq(0, 3, length.out = 50) * x$B_hat else
+        seq(0, 1, length.out = 50)
     }
+    phi_vec   <- t_mult * B_grid
+    use_ratio <- x$B_hat > 0
+    x_ratio   <- if (use_ratio) B_grid / x$B_hat else B_grid
+    x_label   <- if (use_ratio) expression(B / hat(B)) else "Sensitivity parameter B"
+    vline_label <- expression(hat(B))
   }
 
-  # Compute t_multiplier for this period (LPT-a: 1, LPT-b: t)
-  t_mult <- 1L
-  if (!is.null(x$lpt_type) && x$lpt_type == "b" && !is.null(x$t_index_map)) {
-    t_mult <- x$t_index_map[[pp_char]]
-  }
-
-  use_ratio <- x$B_hat > 0
-  z_alpha   <- stats::qnorm(1 - x$specifications$alpha / 2)
-  x_var     <- if (use_ratio) "B_ratio" else "B"
+  z_alpha <- stats::qnorm(1 - x$specifications$alpha / 2)
+  x_var   <- if (use_ratio) "B_ratio" else "B"
 
   if (estimand == "datt") {
-    idx          <- which.min(abs(ep - d0))
-    center_val   <- sr$lambda_d[idx]
-    se_val       <- sr$se_lambda[idx]
-    d0_actual    <- ep[idx]
-
+    idx        <- which.min(abs(ep - d0))
+    center_val <- sr$lambda_d[idx]
+    se_val     <- sr$se_lambda[idx]
+    d0_actual  <- ep[idx]
     sens_df <- data.frame(
-      B        = B_grid,
-      B_ratio  = if (use_ratio) B_grid / x$B_hat else B_grid,
-      center   = center_val,
-      is_lower = center_val - t_mult * B_grid,
-      is_upper = center_val + t_mult * B_grid,
-      ci_lower = center_val - t_mult * B_grid - z_alpha * se_val,
-      ci_upper = center_val + t_mult * B_grid + z_alpha * se_val
+      B = B_grid, B_ratio = x_ratio, center = center_val,
+      is_lower = center_val - phi_vec,
+      is_upper = center_val + phi_vec,
+      ci_lower = center_val - phi_vec - z_alpha * se_val,
+      ci_upper = center_val + phi_vec + z_alpha * se_val
     )
     y_label    <- expression(partialdiff * ATT(d) / partialdiff * d ~ "at" ~ d[0])
-    plot_title <- sprintf("Sensitivity: Dose-Response Slope at d = %.2f (t=%d)",
-                          d0_actual, t_mult)
+    plot_title <- sprintf("Sensitivity: dATT at d = %.2f (t=%d)", d0_actual, t_idx)
     show_ci    <- TRUE
 
   } else if (estimand == "att") {
-    if (is.null(x$att)) {
-      stop("ATT level bounds not available (no untreated units in data). ",
-           "Use estimand = 'datt'.")
-    }
-    att_pp <- x$att[x$att$period == pp, ]
-    if (nrow(att_pp) == 0) {
-      stop("No ATT data for period ", pp, ".")
-    }
-    att_sub      <- att_pp[att_pp$B == att_pp$B[1], ]
-    idx          <- which.min(abs(att_sub$d - d0))
-    center_val   <- att_sub$Lambda_d[idx]
-    d0_actual    <- att_sub$d[idx]
-
+    if (is.null(x$att)) stop("ATT level bounds not available.")
+    att_pp  <- x$att[x$att$period == pp, ]
+    att_sub <- att_pp[att_pp$B == att_pp$B[1], ]
+    idx        <- which.min(abs(att_sub$d - d0))
+    center_val <- att_sub$Lambda_d[idx]
+    d0_actual  <- att_sub$d[idx]
     sens_df <- data.frame(
-      B        = B_grid,
-      B_ratio  = if (use_ratio) B_grid / x$B_hat else B_grid,
-      center   = center_val,
-      is_lower = center_val - t_mult * B_grid * d0_actual,
-      is_upper = center_val + t_mult * B_grid * d0_actual,
-      ci_lower = NA_real_,
-      ci_upper = NA_real_
+      B = B_grid, B_ratio = x_ratio, center = center_val,
+      is_lower = center_val - phi_vec * d0_actual,
+      is_upper = center_val + phi_vec * d0_actual,
+      ci_lower = NA_real_, ci_upper = NA_real_
     )
     y_label    <- expression(ATT(d[0]))
-    plot_title <- sprintf("Sensitivity: ATT(d|d) at d = %.2f (t=%d)",
-                          d0_actual, t_mult)
+    plot_title <- sprintf("Sensitivity: ATT(d|d) at d = %.2f (t=%d)", d0_actual, t_idx)
     show_ci    <- FALSE
 
-  } else {
-    if (is.null(x$att_o)) {
-      stop("Overall ATT bounds not available (no untreated units in data). ",
-           "Use estimand = 'datt'.")
-    }
-    att_o_pp <- x$att_o[x$att_o$period == pp, ]
-    if (nrow(att_o_pp) == 0) {
-      stop("No ATT^o data for period ", pp, ".")
-    }
+  } else {  # att_o
+    if (is.null(x$att_o)) stop("Overall ATT bounds not available.")
+    att_o_pp   <- x$att_o[x$att_o$period == pp, ]
     center_val <- att_o_pp$att_o_bin[1]
     D_bar      <- att_o_pp$D_bar[1]
-
     sens_df <- data.frame(
-      B        = B_grid,
-      B_ratio  = if (use_ratio) B_grid / x$B_hat else B_grid,
-      center   = center_val,
-      is_lower = center_val - t_mult * B_grid * D_bar,
-      is_upper = center_val + t_mult * B_grid * D_bar,
-      ci_lower = NA_real_,
-      ci_upper = NA_real_
+      B = B_grid, B_ratio = x_ratio, center = center_val,
+      is_lower = center_val - phi_vec * D_bar,
+      is_upper = center_val + phi_vec * D_bar,
+      ci_lower = NA_real_, ci_upper = NA_real_
     )
     y_label    <- expression(ATT^o)
-    plot_title <- sprintf("Sensitivity: Overall ATT (t=%d)", t_mult)
+    plot_title <- sprintf("Sensitivity: Overall ATT (t=%d)", t_idx)
     show_ci    <- FALSE
   }
 
   p <- ggplot2::ggplot(sens_df, ggplot2::aes(x = .data[[x_var]]))
-
   if (show_ci) {
     p <- p + ggplot2::geom_ribbon(
       ggplot2::aes(ymin = .data$ci_lower, ymax = .data$ci_upper),
-      fill = col_band, alpha = 0.2
-    )
+      fill = col_band, alpha = 0.2)
   }
-
   p <- p +
     ggplot2::geom_ribbon(
       ggplot2::aes(ymin = .data$is_lower, ymax = .data$is_upper),
-      fill = col_band, alpha = 0.35
-    ) +
-    ggplot2::geom_hline(yintercept = sens_df$center[1], color = col_line,
-                         linewidth = 0.6) +
+      fill = col_band, alpha = 0.35) +
+    ggplot2::geom_hline(yintercept = sens_df$center[1],
+                         color = col_line, linewidth = 0.6) +
     ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "grey40")
 
   if (use_ratio) {
@@ -344,15 +328,12 @@ plot_sensitivity <- function(x, d0, B_grid, col_band, col_line, col_marker,
                            color = col_marker, linewidth = 0.7) +
       ggplot2::annotate("text", x = 1,
                          y = max(sens_df$is_upper, na.rm = TRUE),
-                         label = expression(hat(B)),
-                         vjust = -0.5, hjust = -0.1, color = col_marker,
-                         size = 3.5) +
-      ggplot2::labs(x = expression(B / hat(B)), y = y_label, title = plot_title)
+                         label = vline_label,
+                         vjust = -0.5, hjust = -0.1,
+                         color = col_marker, size = 3.5) +
+      ggplot2::labs(x = x_label, y = y_label, title = plot_title)
   } else {
-    p <- p +
-      ggplot2::labs(x = "Sensitivity parameter B", y = y_label,
-                    title = plot_title)
+    p <- p + ggplot2::labs(x = x_label, y = y_label, title = plot_title)
   }
-
   p + ggplot2::theme_minimal(base_size = 12)
 }
