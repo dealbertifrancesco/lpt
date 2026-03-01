@@ -57,6 +57,28 @@ summary.lpt <- function(object, ...) {
   }
   cat("  B = 0 is standard parallel trends (point identification).\n")
 
+  # --- Time restriction info ---
+  tr <- object$specifications$time_restriction
+  if (!is.null(tr) && tr != "none") {
+    if (tr == "rm") {
+      cat(sprintf("\n  Time restriction: RM-Time (M_bar = %.4f)\n",
+                  object$specifications$M_bar))
+    } else if (tr == "sd") {
+      cat(sprintf("\n  Time restriction: SD-Time (B_t = %.4f)\n",
+                  object$specifications$B_t))
+    }
+  } else {
+    cat("\n  Time restriction: none (LPT only)\n")
+  }
+
+  # --- t multipliers per post-period ---
+  if (!is.null(object$t_values)) {
+    cat("  t multipliers per post-period:\n")
+    for (nm in names(object$t_values)) {
+      cat(sprintf("    period %s: t = %d\n", nm, object$t_values[[nm]]))
+    }
+  }
+
   # --- ATT^o summary (Corollary 1) ---
   if (!is.null(object$att_o)) {
     for (pp in object$post_periods) {
@@ -105,15 +127,32 @@ summary.lpt <- function(object, ...) {
       dose_vals <- att_pp$d
       qtiles <- stats::quantile(dose_vals, probs = c(0.25, 0.5, 0.75))
 
-      cat(sprintf("  %-10s %-12s %-22s %-10s\n",
-                  "Dose", "Lambda(d)", "[ATT lower, upper]", "Excl. 0?"))
+      # Check if binding columns are present (from time restriction)
+      has_binding <- "binding_lower" %in% names(att_pp)
+
+      if (has_binding) {
+        cat(sprintf("  %-10s %-12s %-22s %-14s %-10s\n",
+                    "Dose", "Lambda(d)", "[ATT lower, upper]",
+                    "Binding(lo/up)", "Excl. 0?"))
+      } else {
+        cat(sprintf("  %-10s %-12s %-22s %-10s\n",
+                    "Dose", "Lambda(d)", "[ATT lower, upper]", "Excl. 0?"))
+      }
+
       for (qt in qtiles) {
         idx <- which.min(abs(dose_vals - qt))
         row <- att_pp[idx, ]
         excludes_zero <- (row$att_lower > 0) | (row$att_upper < 0)
-        cat(sprintf("  %-10.3f %-12.4f [%-8.4f, %-8.4f]  %-10s\n",
-                    row$d, row$Lambda_d, row$att_lower, row$att_upper,
-                    ifelse(excludes_zero, "Yes", "No")))
+        if (has_binding) {
+          bind_str <- paste0(row$binding_lower, "/", row$binding_upper)
+          cat(sprintf("  %-10.3f %-12.4f [%-8.4f, %-8.4f]  %-14s %-10s\n",
+                      row$d, row$Lambda_d, row$att_lower, row$att_upper,
+                      bind_str, ifelse(excludes_zero, "Yes", "No")))
+        } else {
+          cat(sprintf("  %-10.3f %-12.4f [%-8.4f, %-8.4f]  %-10s\n",
+                      row$d, row$Lambda_d, row$att_lower, row$att_upper,
+                      ifelse(excludes_zero, "Yes", "No")))
+        }
       }
     }
   }
