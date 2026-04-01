@@ -3,9 +3,6 @@
 R package for partial identification in continuous difference-in-differences
 designs under Local Parallel Trends (LPT).
 
-> Dealberti (2026). *Local Parallel Trends for Continuous
-> Difference-in-Differences.*
-
 ## Installation
 
 ```r
@@ -130,11 +127,6 @@ these slopes with $\pm\hat{B}$ bands.
 
 - **Required:** `mgcv`, `stats`
 - **Suggested:** `ggplot2` (plotting), `testthat`, `knitr`, `rmarkdown`
-
-## References
-
-Dealberti, F. (2026). Local Parallel Trends for Continuous
-Difference-in-Differences.
 
 ## AI Use Acknowledgment
 
