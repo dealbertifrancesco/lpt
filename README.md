@@ -91,7 +91,6 @@ conclusion to overturn?"
 |----------|-------------|
 | `lpt()` | Main estimation function |
 | `calibrate_B()` | Calibrate B from pre-treatment periods |
-| `estimate_dose_slope()` | Estimate $\lambda(d)$ via penalized splines |
 | `plot.lpt()` | Visualize identified sets and sensitivity |
 | `summary.lpt()` | Tabular summary at dose quartiles |
 

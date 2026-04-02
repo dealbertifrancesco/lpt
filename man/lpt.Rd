@@ -15,8 +15,7 @@ lpt(
   B = "calibrate",
   eval_points = NULL,
   k = 20,
-  spline_bs = "cr",
-  alpha = 0.05
+  spline_bs = "cr"
 )
 }
 \arguments{
@@ -51,15 +50,13 @@ Default: 50 points over 5th-95th percentile of dose.}
 
 \item{spline_bs}{Character. Spline basis type (\code{"cr"} or \code{"tp"}).
 Default: \code{"cr"}.}
-
-\item{alpha}{Numeric. Significance level for pointwise CIs. Default: 0.05.}
 }
 \value{
 An S3 object of class \code{"lpt"} containing:
   \describe{
     \item{datt}{Data frame with columns \code{period}, \code{d},
-      \code{lambda_d}, \code{se_lambda}, \code{B}, \code{datt_lower},
-      \code{datt_upper}, \code{ci_lower}, \code{ci_upper}.
+      \code{lambda_d}, \code{B}, \code{datt_lower},
+      \code{datt_upper}.
       Identified set for \eqn{\partial ATT(d|d)/\partial d}.}
     \item{att}{Data frame with ATT level bounds (NULL if no untreated units).
       Identified set for \eqn{ATT(d|d)}.}

@@ -14,7 +14,7 @@ get_derivative(gam_fit, eval_points, eps = 1e-07)
 \item{eps}{Numeric. Step size for finite differencing (default: 1e-7).}
 }
 \value{
-A list with \code{derivative} and \code{se} (both numeric vectors).
+A list with \code{derivative} (numeric vector).
 }
 \description{
 Compute derivative of a GAM fit via finite differencing of the lpmatrix

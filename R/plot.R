@@ -189,12 +189,6 @@ plot_pretrends <- function(x, col_pretrend, col_marker) {
   p <- ggplot2::ggplot(df, ggplot2::aes(x = .data$d, y = .data$mu_prime_d,
                                           color = .data$period_pair)) +
     ggplot2::geom_line(linewidth = 0.7) +
-    ggplot2::geom_ribbon(
-      ggplot2::aes(ymin = .data$mu_prime_d - 1.96 * .data$se,
-                   ymax = .data$mu_prime_d + 1.96 * .data$se,
-                   fill = .data$period_pair),
-      alpha = 0.15, color = NA
-    ) +
     ggplot2::geom_hline(yintercept = c(-B_hat, B_hat),
                          linetype = "dashed", color = col_marker, linewidth = 0.6) +
     ggplot2::geom_hline(yintercept = 0, linetype = "solid", color = "grey40",
@@ -206,8 +200,7 @@ plot_pretrends <- function(x, col_pretrend, col_marker) {
       x = "Dose (d)",
       y = expression(hat(mu) * "'" * (d)),
       title = "Pre-Period Selection Slopes",
-      color = "Period pair",
-      fill = "Period pair"
+      color = "Period pair"
     ) +
     ggplot2::theme_minimal(base_size = 12)
 
@@ -239,14 +232,12 @@ plot_sensitivity <- function(x, d0, B_grid, col_band, col_line, col_marker,
   }
 
   use_ratio <- x$B_hat > 0
-  z_alpha   <- stats::qnorm(1 - x$specifications$alpha / 2)
   x_var     <- if (use_ratio) "B_ratio" else "B"
 
   if (estimand == "datt") {
     # IS_dATT(d0; B) = [lambda(d0) - B, lambda(d0) + B]
     idx          <- which.min(abs(ep - d0))
     center_val   <- sr$lambda_d[idx]
-    se_val       <- sr$se_lambda[idx]
     d0_actual    <- ep[idx]
 
     sens_df <- data.frame(
@@ -254,13 +245,10 @@ plot_sensitivity <- function(x, d0, B_grid, col_band, col_line, col_marker,
       B_ratio = if (use_ratio) B_grid / x$B_hat else B_grid,
       center  = center_val,
       is_lower = center_val - B_grid,
-      is_upper = center_val + B_grid,
-      ci_lower = center_val - B_grid - z_alpha * se_val,
-      ci_upper = center_val + B_grid + z_alpha * se_val
+      is_upper = center_val + B_grid
     )
     y_label    <- expression(partialdiff * ATT(d) / partialdiff * d ~ "at" ~ d[0])
     plot_title <- sprintf("Sensitivity: Dose-Response Slope at d = %.2f", d0_actual)
-    show_ci    <- TRUE
 
   } else if (estimand == "att") {
     # IS_ATT(d0; B) = [Lambda(d0) - B*d0, Lambda(d0) + B*d0]
@@ -283,13 +271,10 @@ plot_sensitivity <- function(x, d0, B_grid, col_band, col_line, col_marker,
       B_ratio  = if (use_ratio) B_grid / x$B_hat else B_grid,
       center   = center_val,
       is_lower = center_val - B_grid * d0_actual,
-      is_upper = center_val + B_grid * d0_actual,
-      ci_lower = NA_real_,
-      ci_upper = NA_real_
+      is_upper = center_val + B_grid * d0_actual
     )
     y_label    <- expression(ATT(d[0]))
     plot_title <- sprintf("Sensitivity: ATT(d|d) at d = %.2f", d0_actual)
-    show_ci    <- FALSE
 
   } else {
     # estimand == "att_o"
@@ -310,23 +295,13 @@ plot_sensitivity <- function(x, d0, B_grid, col_band, col_line, col_marker,
       B_ratio  = if (use_ratio) B_grid / x$B_hat else B_grid,
       center   = center_val,
       is_lower = center_val - B_grid * D_bar,
-      is_upper = center_val + B_grid * D_bar,
-      ci_lower = NA_real_,
-      ci_upper = NA_real_
+      is_upper = center_val + B_grid * D_bar
     )
     y_label    <- expression(ATT^o)
     plot_title <- "Sensitivity: Overall ATT"
-    show_ci    <- FALSE
   }
 
   p <- ggplot2::ggplot(sens_df, ggplot2::aes(x = .data[[x_var]]))
-
-  if (show_ci) {
-    p <- p + ggplot2::geom_ribbon(
-      ggplot2::aes(ymin = .data$ci_lower, ymax = .data$ci_upper),
-      fill = col_band, alpha = 0.2
-    )
-  }
 
   p <- p +
     ggplot2::geom_ribbon(

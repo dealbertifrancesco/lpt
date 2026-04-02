@@ -26,8 +26,7 @@ multiple post-periods exist, plots all periods faceted. Default: NULL.}
 
 \item{d0}{Numeric. Required dose value when \code{estimand} is \code{"datt"}
 or \code{"att"}. The identified set for these estimands depends on the
-chosen dose level; no default is provided. Ignored when
-\code{estimand = "att_o"}.}
+chosen dose level; no default is provided. Ignored for \code{"att_o"}.}
 
 \item{B_grid}{Numeric vector or NULL. Grid of B values for sensitivity plot.
 Default: \code{seq(0, 3 * B_hat, length.out = 50)}.}

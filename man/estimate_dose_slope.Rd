@@ -32,7 +32,6 @@ A list of class \code{"dose_slope"} with components:
     \item{eval_points}{Dose grid used for evaluation.}
     \item{conditional_mean}{\eqn{\hat{E}[\Delta Y \mid D = d]} at each evaluation point.}
     \item{lambda_d}{\eqn{\hat{\lambda}(d)} — estimated derivative at each point.}
-    \item{se_lambda}{Pointwise standard error of the derivative.}
     \item{gam_fit}{The fitted \code{mgcv::gam} object.}
   }
 }
@@ -43,8 +42,7 @@ using cubic regression splines with REML smoothing parameter selection.
 }
 \details{
 The derivative is computed via finite differencing of the prediction matrix
-(lpmatrix). Standard errors use the delta method. See the package vignette
-for theoretical details.
+(lpmatrix).
 }
 \examples{
 data(sru)

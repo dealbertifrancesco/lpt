@@ -42,7 +42,7 @@ A list with components:
     \item{B_hat}{Numeric. Calibrated sensitivity parameter
       \eqn{\hat{B} = \max_s \sup_d |\hat{\mu}'_s(d)|}.}
     \item{pre_slopes}{Data frame with columns \code{period_pair},
-      \code{d}, \code{mu_prime_d}, \code{se}.}
+      \code{d}, \code{mu_prime_d}.}
     \item{sup_by_period}{Named numeric vector of
       \eqn{\sup_d |\hat{\mu}'_s(d)|} for each pre-period pair.}
   }

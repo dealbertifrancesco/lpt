@@ -120,11 +120,10 @@ summary.lpt <- function(object, ...) {
 
   # --- Footer ---
   cat(sprintf(
-    "\n  n = %d | Spline: %s (k = %d) | alpha = %.2f\n",
+    "\n  n = %d | Spline: %s (k = %d)\n",
     object$n,
     object$specifications$spline_bs,
-    object$specifications$k,
-    object$specifications$alpha
+    object$specifications$k
   ))
   rule()
 

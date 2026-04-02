@@ -21,7 +21,7 @@
 #'     \item{B_hat}{Numeric. Calibrated sensitivity parameter
 #'       \eqn{\hat{B} = \max_s \sup_d |\hat{\mu}'_s(d)|}.}
 #'     \item{pre_slopes}{Data frame with columns \code{period_pair},
-#'       \code{d}, \code{mu_prime_d}, \code{se}.}
+#'       \code{d}, \code{mu_prime_d}.}
 #'     \item{sup_by_period}{Named numeric vector of
 #'       \eqn{\sup_d |\hat{\mu}'_s(d)|} for each pre-period pair.}
 #'   }
@@ -73,8 +73,7 @@ calibrate_B <- function(data, id_col, time_col, outcome_col, dose_col,
     slopes_df <- data.frame(
       period_pair = pair_label,
       d = slope_result$eval_points,
-      mu_prime_d = slope_result$lambda_d,
-      se = slope_result$se_lambda
+      mu_prime_d = slope_result$lambda_d
     )
     all_slopes[[j]] <- slopes_df
 

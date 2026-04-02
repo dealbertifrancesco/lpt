@@ -25,13 +25,11 @@
 #' @param k Integer. Spline basis dimension. Default: 20.
 #' @param spline_bs Character. Spline basis type (\code{"cr"} or \code{"tp"}).
 #'   Default: \code{"cr"}.
-#' @param alpha Numeric. Significance level for pointwise CIs. Default: 0.05.
-#'
 #' @return An S3 object of class \code{"lpt"} containing:
 #'   \describe{
 #'     \item{datt}{Data frame with columns \code{period}, \code{d},
-#'       \code{lambda_d}, \code{se_lambda}, \code{B}, \code{datt_lower},
-#'       \code{datt_upper}, \code{ci_lower}, \code{ci_upper}.
+#'       \code{lambda_d}, \code{B}, \code{datt_lower},
+#'       \code{datt_upper}.
 #'       Identified set for \eqn{\partial ATT(d|d)/\partial d}.}
 #'     \item{att}{Data frame with ATT level bounds (NULL if no untreated units).
 #'       Identified set for \eqn{ATT(d|d)}.}
@@ -79,7 +77,7 @@
 lpt <- function(data, id_col, time_col, outcome_col, dose_col,
                 post_period, pre_periods = NULL,
                 B = "calibrate", eval_points = NULL,
-                k = 20, spline_bs = "cr", alpha = 0.05) {
+                k = 20, spline_bs = "cr") {
 
   # --- Input validation ---
   if (!is.data.frame(data)) stop("data must be a data.frame.")
@@ -196,14 +194,11 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
   }
 
   # --- Construct identified sets per period ---
-  z_alpha <- stats::qnorm(1 - alpha / 2)
-
   for (pp in post_periods) {
     pp_char <- as.character(pp)
     sr <- slopes[[pp_char]]
     ep <- sr$eval_points
     lambda_d <- sr$lambda_d
-    se_lambda <- sr$se_lambda
 
     # IS_{dATT}(d; B) = [lambda(d) - B, lambda(d) + B]
     for (b in B_values) {
@@ -211,12 +206,9 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
         period = pp,
         d = ep,
         lambda_d = lambda_d,
-        se_lambda = se_lambda,
         B = b,
         datt_lower = lambda_d - b,
-        datt_upper = lambda_d + b,
-        ci_lower = lambda_d - b - z_alpha * se_lambda,
-        ci_upper = lambda_d + b + z_alpha * se_lambda
+        datt_upper = lambda_d + b
       )
     }
 
@@ -285,7 +277,7 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
       post_periods = post_periods,
       ref_period = ref_period,
       specifications = list(
-        k = k, spline_bs = spline_bs, alpha = alpha,
+        k = k, spline_bs = spline_bs,
         post_periods = post_periods, ref_period = ref_period
       )
     ),

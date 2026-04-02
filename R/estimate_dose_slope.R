@@ -18,14 +18,12 @@
 #'     \item{eval_points}{Dose grid used for evaluation.}
 #'     \item{conditional_mean}{\eqn{\hat{E}[\Delta Y \mid D = d]} at each evaluation point.}
 #'     \item{lambda_d}{\eqn{\hat{\lambda}(d)} — estimated derivative at each point.}
-#'     \item{se_lambda}{Pointwise standard error of the derivative.}
 #'     \item{gam_fit}{The fitted \code{mgcv::gam} object.}
 #'   }
 #'
 #' @details
 #' The derivative is computed via finite differencing of the prediction matrix
-#' (lpmatrix). Standard errors use the delta method. See the package vignette
-#' for theoretical details.
+#' (lpmatrix).
 #'
 #' @examples
 #' data(sru)
@@ -101,7 +99,6 @@ estimate_dose_slope <- function(delta_y, dose, eval_points = NULL,
       eval_points = eval_points,
       conditional_mean = conditional_mean,
       lambda_d = deriv_result$derivative,
-      se_lambda = deriv_result$se,
       gam_fit = gam_fit
     ),
     class = "dose_slope"
@@ -115,7 +112,7 @@ estimate_dose_slope <- function(delta_y, dose, eval_points = NULL,
 #' @param eval_points Numeric vector. Points at which to evaluate the derivative.
 #' @param eps Numeric. Step size for finite differencing (default: 1e-7).
 #'
-#' @return A list with \code{derivative} and \code{se} (both numeric vectors).
+#' @return A list with \code{derivative} (numeric vector).
 #'
 #' @keywords internal
 get_derivative <- function(gam_fit, eval_points, eps = 1e-7) {
@@ -128,10 +125,7 @@ get_derivative <- function(gam_fit, eval_points, eps = 1e-7) {
   Xd <- (X1 - X0) / eps
 
   beta_hat <- stats::coef(gam_fit)
-  V <- stats::vcov(gam_fit)
-
   deriv <- as.numeric(Xd %*% beta_hat)
-  se_deriv <- sqrt(pmax(rowSums((Xd %*% V) * Xd), 0))
 
-  list(derivative = deriv, se = se_deriv)
+  list(derivative = deriv)
 }

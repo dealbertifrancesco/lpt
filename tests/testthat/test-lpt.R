@@ -1,4 +1,4 @@
-test_that("lpt works on bundled sru data with B=0", {
+test_that("lpt works on sru data with B=0", {
   data(sru, package = "lpt")
   fit <- lpt(sru, "commune", "year", "outcome", "dose",
              post_period = 2019, pre_periods = 1993:1999, B = 0)
@@ -11,6 +11,8 @@ test_that("lpt works on bundled sru data with B=0", {
                     %in% names(fit$datt)))
   expect_true(all(c("period", "d", "Lambda_d", "att_lower", "att_upper")
                     %in% names(fit$att)))
+  # With B=0, IS width should be 0
+  expect_true(all(abs(fit$datt$datt_upper - fit$datt$datt_lower) < 1e-10))
 })
 
 test_that("lpt works with B=calibrate on sru data", {
@@ -22,12 +24,11 @@ test_that("lpt works with B=calibrate on sru data", {
   expect_s3_class(fit, "lpt")
   expect_gt(fit$B_hat, 0)
   expect_true(!is.null(fit$calibration))
-  # Identified set should be wider than point estimate
   datt <- fit$datt[fit$datt$B == fit$B_hat, ]
   expect_true(all(datt$datt_upper - datt$datt_lower > 0))
 })
 
-test_that("lpt computes ATT^o (Corollary 1)", {
+test_that("lpt computes ATT^o", {
   data(sru, package = "lpt")
   fit <- lpt(sru, "commune", "year", "outcome", "dose",
              post_period = 2019, pre_periods = 1993:1999, B = 0)
@@ -57,7 +58,7 @@ test_that("print and summary methods work", {
              post_period = 2019, pre_periods = 1993:1999, B = 0)
 
   expect_output(print(fit), "lpt")
-  expect_output(summary(fit), "Lipschitz Parallel Trends")
+  expect_output(summary(fit), "Local Parallel Trends")
 })
 
 test_that("plot methods do not error", {
