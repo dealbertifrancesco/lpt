@@ -94,7 +94,7 @@ conclusion to overturn?"
 ## Data
 
 The package ships with the `sru` dataset: panel data on 991 French communes
-affected by the 2000 Solidarity and Urban Renewal (SRU) law, with annual
+affected by the 2000 (SRU) French Law, with annual
 observations from 1993 to 2019.
 
 ```r
