@@ -22,21 +22,22 @@
 #'   computed for each value (sensitivity analysis). Default: \code{"calibrate"}.
 #' @param eval_points Numeric vector or NULL. Dose grid for evaluation.
 #'   Default: 50 points over 5th-95th percentile of dose.
-#' @param k Integer. Spline basis dimension. Default: 20.
+#' @param k Integer. Spline basis dimension. Default: 5.
 #' @param spline_bs Character. Spline basis type (\code{"cr"} or \code{"tp"}).
 #'   Default: \code{"cr"}.
 #' @return An S3 object of class \code{"lpt"} containing:
 #'   \describe{
-#'     \item{datt}{Data frame with columns \code{period}, \code{d},
-#'       \code{lambda_d}, \code{B}, \code{datt_lower},
-#'       \code{datt_upper}.
-#'       Identified set for \eqn{\partial ATT(d|d)/\partial d}.}
+#'     \item{datt}{Data frame with columns \code{period}, \code{horizon},
+#'       \code{d}, \code{lambda_d}, \code{B}, \code{datt_lower},
+#'       \code{datt_upper}. Identified set width is \code{2*(horizon+1)*B}.}
 #'     \item{att}{Data frame with ATT level bounds (NULL if no untreated units).
-#'       Identified set for \eqn{ATT(d|d)}.}
-#'     \item{att_o}{List with overall ATT summary (Corollary 1):
-#'       \code{att_o_bin} (binarized DiD), \code{D_bar} (mean dose among treated),
-#'       and for each B value: \code{att_o_lower}, \code{att_o_upper}.
-#'       NULL if no untreated units.}
+#'       Includes \code{horizon} column; width is \code{2*(horizon+1)*B*d}.}
+#'     \item{att_o}{Data frame with per-period overall ATT summary.
+#'       Includes \code{horizon} column; width is
+#'       \code{2*(horizon+1)*B*D_bar}. NULL if no untreated units.}
+#'     \item{att_o_agg}{Data frame with time-aggregated overall ATT across
+#'       all requested post-periods. NULL if single post-period or no
+#'       untreated units.}
 #'     \item{B_hat}{The primary sensitivity parameter used.}
 #'     \item{B_values}{All B values computed.}
 #'     \item{calibration}{Output from \code{\link{calibrate_B}} if calibration
@@ -69,7 +70,7 @@
 #' @examples
 #' data(sru)
 #' fit <- lpt(sru, "commune", "year", "outcome", "dose",
-#'            post_period = 2019, pre_periods = 1993:1999,
+#'            post_period = 0:5, pre_periods = -7:-1,
 #'            B = "calibrate")
 #' fit
 #'
@@ -77,7 +78,7 @@
 lpt <- function(data, id_col, time_col, outcome_col, dose_col,
                 post_period, pre_periods = NULL,
                 B = "calibrate", eval_points = NULL,
-                k = 20, spline_bs = "cr") {
+                k = 5, spline_bs = "cr") {
 
   # --- Input validation ---
   if (!is.data.frame(data)) stop("data must be a data.frame.")
@@ -98,6 +99,7 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
 
   # --- Period structure ---
   post_periods <- sort(post_period)
+  min_post <- min(post_periods)
 
   if (!is.null(pre_periods)) {
     pre_period_set <- sort(pre_periods)
@@ -199,29 +201,31 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
     sr <- slopes[[pp_char]]
     ep <- sr$eval_points
     lambda_d <- sr$lambda_d
+    horizon_t <- as.integer(pp - min_post)
+    mult <- horizon_t + 1L
 
-    # IS_{dATT}(d; B) = [lambda(d) - B, lambda(d) + B]
+    # IS_{dATT}(d, t; B) = [lambda_t(d) - (t+1)B, lambda_t(d) + (t+1)B]
     for (b in B_values) {
       datt_all[[length(datt_all) + 1]] <- data.frame(
         period = pp,
+        horizon = horizon_t,
         d = ep,
         lambda_d = lambda_d,
         B = b,
-        datt_lower = lambda_d - b,
-        datt_upper = lambda_d + b
+        datt_lower = lambda_d - mult * b,
+        datt_upper = lambda_d + mult * b
       )
     }
 
-    # IS_{ATT}(d; B) = [Lambda(d) - Bd, Lambda(d) + Bd]
+    # IS_{ATT}(d, t; B) = [Lambda_t(d) - (t+1)Bd, Lambda_t(d) + (t+1)Bd]
     if (has_untreated) {
-      att_pp <- compute_att_bounds(sr, B_values, dose_vec, period = pp)
+      att_pp <- compute_att_bounds(sr, B_values, dose_vec,
+                                    period = pp, horizon = horizon_t)
       att_all[[length(att_all) + 1]] <- att_pp
     }
 
-    # IS_{ATT^o}(B) = [ATT^o_bin - B * D_bar, ATT^o_bin + B * D_bar]
-    # (Corollary 1: overall ATT summary)
+    # IS_{ATT^o_t}(B) = [att_o_bin - (t+1)*B*D_bar, att_o_bin + (t+1)*B*D_bar]
     if (has_untreated) {
-      # Recompute delta_y for this period to get ATT^o_bin
       post_data <- data[data[[time_col]] == pp, ]
       merged_atto <- merge(
         ref_data[, c(id_col, outcome_col, dose_col), drop = FALSE],
@@ -240,11 +244,12 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
       for (b in B_values) {
         att_o_all[[length(att_o_all) + 1]] <- data.frame(
           period = pp,
+          horizon = horizon_t,
           att_o_bin = att_o_bin,
           D_bar = D_bar,
           B = b,
-          att_o_lower = att_o_bin - b * D_bar,
-          att_o_upper = att_o_bin + b * D_bar
+          att_o_lower = att_o_bin - mult * b * D_bar,
+          att_o_upper = att_o_bin + mult * b * D_bar
         )
       }
     }
@@ -257,6 +262,31 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
   if (!is.null(att)) rownames(att) <- NULL
   if (!is.null(att_o)) rownames(att_o) <- NULL
 
+  # --- Time-aggregated ATT^0 (Eq. 31 generalized) ---
+  att_o_agg <- NULL
+  if (has_untreated && length(post_periods) > 1 && !is.null(att_o)) {
+    horizons <- as.integer(post_periods - min_post)
+    K <- length(post_periods)
+    avg_mult <- mean(horizons + 1L)
+
+    for (b in B_values) {
+      att_o_b <- att_o[att_o$B == b, ]
+      Lambda_agg <- mean(att_o_b$att_o_bin)
+      D_bar_agg <- att_o_b$D_bar[1]
+      half_width <- avg_mult * b * D_bar_agg
+
+      att_o_agg <- rbind(att_o_agg, data.frame(
+        Lambda_agg = Lambda_agg,
+        D_bar = D_bar_agg,
+        n_periods = K,
+        B = b,
+        att_o_agg_lower = Lambda_agg - half_width,
+        att_o_agg_upper = Lambda_agg + half_width
+      ))
+    }
+    rownames(att_o_agg) <- NULL
+  }
+
   if (!has_untreated) {
     message("No untreated units (dose = 0). ATT level bounds not computed.")
   }
@@ -267,6 +297,7 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
       datt = datt,
       att = att,
       att_o = att_o,
+      att_o_agg = att_o_agg,
       B_hat = B_hat,
       B_values = B_values,
       calibration = calibration_result,

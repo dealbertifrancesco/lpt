@@ -8,7 +8,7 @@
 #' @param dose Numeric vector. Doses \eqn{D_i}. Same length as \code{delta_y}.
 #' @param eval_points Numeric vector or NULL. Dose values at which to evaluate.
 #'   Default: 50 evenly spaced points from 5th to 95th percentile of dose.
-#' @param k Integer. Number of spline basis functions (default: 20).
+#' @param k Integer. Number of spline basis functions (default: 5).
 #'   Reduced automatically if too large for the sample size.
 #' @param spline_bs Character. Basis type: \code{"cr"} (cubic regression, default)
 #'   or \code{"tp"} (thin plate).
@@ -27,8 +27,8 @@
 #'
 #' @examples
 #' data(sru)
-#' ref <- sru[sru$year == 1999, ]
-#' post <- sru[sru$year == 2019, ]
+#' ref <- sru[sru$year == -1, ]
+#' post <- sru[sru$year == 5, ]
 #' m <- merge(ref[, c("commune", "outcome", "dose")],
 #'            post[, c("commune", "outcome")],
 #'            by = "commune", suffixes = c("_ref", "_post"))
@@ -38,7 +38,7 @@
 #'
 #' @export
 estimate_dose_slope <- function(delta_y, dose, eval_points = NULL,
-                                 k = 20, spline_bs = "cr") {
+                                 k = 5, spline_bs = "cr") {
   # --- Input validation ---
   if (!is.numeric(delta_y)) stop("delta_y must be numeric.")
   if (!is.numeric(dose)) stop("dose must be numeric.")

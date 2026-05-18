@@ -12,7 +12,7 @@ calibrate_B(
   dose_col,
   pre_periods,
   eval_points = NULL,
-  k = 20,
+  k = 5,
   spline_bs = "cr"
 )
 }
@@ -32,7 +32,7 @@ Must have at least 2 elements.}
 
 \item{eval_points}{Numeric vector or NULL. Dose grid for evaluation.}
 
-\item{k}{Integer. Spline basis dimension. Default: 20.}
+\item{k}{Integer. Spline basis dimension. Default: 5.}
 
 \item{spline_bs}{Character. Spline basis type. Default: \code{"cr"}.}
 }
@@ -56,7 +56,7 @@ so \eqn{\lambda(d) = \mu'(d)} directly measures the selection slope.
 \examples{
 data(sru)
 cal <- calibrate_B(sru, "commune", "year", "outcome", "dose",
-                    pre_periods = 1993:1999)
+                    pre_periods = -7:-1)
 cal$B_hat
 
 }

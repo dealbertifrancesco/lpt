@@ -4,13 +4,7 @@
 \alias{estimate_dose_slope}
 \title{Estimate the dose-response slope via penalized splines}
 \usage{
-estimate_dose_slope(
-  delta_y,
-  dose,
-  eval_points = NULL,
-  k = 20,
-  spline_bs = "cr"
-)
+estimate_dose_slope(delta_y, dose, eval_points = NULL, k = 5, spline_bs = "cr")
 }
 \arguments{
 \item{delta_y}{Numeric vector. First differences \eqn{\Delta Y_i}.}
@@ -20,7 +14,7 @@ estimate_dose_slope(
 \item{eval_points}{Numeric vector or NULL. Dose values at which to evaluate.
 Default: 50 evenly spaced points from 5th to 95th percentile of dose.}
 
-\item{k}{Integer. Number of spline basis functions (default: 20).
+\item{k}{Integer. Number of spline basis functions (default: 5).
 Reduced automatically if too large for the sample size.}
 
 \item{spline_bs}{Character. Basis type: \code{"cr"} (cubic regression, default)
@@ -46,8 +40,8 @@ The derivative is computed via finite differencing of the prediction matrix
 }
 \examples{
 data(sru)
-ref <- sru[sru$year == 1999, ]
-post <- sru[sru$year == 2019, ]
+ref <- sru[sru$year == -1, ]
+post <- sru[sru$year == 5, ]
 m <- merge(ref[, c("commune", "outcome", "dose")],
            post[, c("commune", "outcome")],
            by = "commune", suffixes = c("_ref", "_post"))

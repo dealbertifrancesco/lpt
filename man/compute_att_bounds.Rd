@@ -4,7 +4,7 @@
 \alias{compute_att_bounds}
 \title{Compute ATT level bounds}
 \usage{
-compute_att_bounds(slope_result, B_values, dose, period = NA)
+compute_att_bounds(slope_result, B_values, dose, period = NA, horizon = 0L)
 }
 \arguments{
 \item{slope_result}{Output from \code{\link{estimate_dose_slope}}.}
@@ -14,13 +14,17 @@ compute_att_bounds(slope_result, B_values, dose, period = NA)
 \item{dose}{Numeric vector of observed doses.}
 
 \item{period}{Scalar. The post-period label for this estimate.}
+
+\item{horizon}{Integer. Horizon index (0 = first post-period). The identified
+set width is multiplied by \code{(horizon + 1)} to account for accumulated
+selection drift across post-treatment periods.}
 }
 \value{
-A data frame with columns: \code{period}, \code{d},
+A data frame with columns: \code{period}, \code{horizon}, \code{d},
   \code{Lambda_d}, \code{B}, \code{att_lower}, \code{att_upper}.
 }
 \description{
-Computes the identified set for \eqn{ATT(d|d)} under Local Parallel Trends:
-\eqn{IS_{ATT}(d; B) = [\Lambda(d) - Bd, \Lambda(d) + Bd]}.
+Computes the identified set for \eqn{ATT(d,t|d)} under Local Parallel Trends:
+\eqn{IS_{ATT}(d, t; B) = [\Lambda_t(d) - (t+1)Bd, \Lambda_t(d) + (t+1)Bd]}.
 }
 \keyword{internal}

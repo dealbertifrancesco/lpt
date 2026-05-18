@@ -34,7 +34,7 @@ print.lpt <- function(x, ...) {
 #' @method summary lpt
 #' @export
 summary.lpt <- function(object, ...) {
-  rule <- function(char = "=", width = 55) {
+  rule <- function(char = "=", width = 60) {
     cat(paste(rep(char, width), collapse = ""), "\n")
   }
 
@@ -57,18 +57,32 @@ summary.lpt <- function(object, ...) {
   }
   cat("  B = 0 is standard parallel trends (point identification).\n")
 
-  # --- ATT^o summary (Corollary 1) ---
+  # --- ATT^o summary per period ---
   if (!is.null(object$att_o)) {
     for (pp in object$post_periods) {
       atto_pp <- object$att_o[object$att_o$period == pp &
                                 object$att_o$B == object$B_hat, ]
       if (nrow(atto_pp) == 0) next
+      h <- atto_pp$horizon[1]
 
-      cat(sprintf("\n  --- ATT^o overall summary (period %s) ---\n", pp))
-      cat(sprintf("  ATT^o_bin (binarized DiD): %.4f\n", atto_pp$att_o_bin))
-      cat(sprintf("  Mean dose among treated:   %.4f\n", atto_pp$D_bar))
-      cat(sprintf("  IS_{ATT^o}(B = %.4f):      [%.4f, %.4f]\n",
+      cat(sprintf("\n  --- ATT^o (period %s, horizon %d, mult = %d) ---\n",
+                  pp, h, h + 1L))
+      cat(sprintf("  ATT^o_bin (binary DiD): %.4f\n", atto_pp$att_o_bin))
+      cat(sprintf("  Mean dose (treated):    %.4f\n", atto_pp$D_bar))
+      cat(sprintf("  IS(B = %.4f):           [%.4f, %.4f]\n",
                   object$B_hat, atto_pp$att_o_lower, atto_pp$att_o_upper))
+    }
+  }
+
+  # --- ATT^0 aggregated ---
+  if (!is.null(object$att_o_agg)) {
+    agg <- object$att_o_agg[object$att_o_agg$B == object$B_hat, ]
+    if (nrow(agg) > 0) {
+      cat(sprintf("\n  --- ATT^0 time-aggregated (%d periods) ---\n",
+                  agg$n_periods[1]))
+      cat(sprintf("  Lambda^agg:   %.4f\n", agg$Lambda_agg))
+      cat(sprintf("  IS(B = %.4f): [%.4f, %.4f]\n",
+                  object$B_hat, agg$att_o_agg_lower, agg$att_o_agg_upper))
     }
   }
 
@@ -77,8 +91,10 @@ summary.lpt <- function(object, ...) {
     datt_pp <- object$datt[object$datt$period == pp &
                              object$datt$B == object$B_hat, ]
     if (nrow(datt_pp) == 0) next
+    h <- datt_pp$horizon[1]
 
-    cat(sprintf("\n  --- dATT identified sets (period %s) ---\n", pp))
+    cat(sprintf("\n  --- dATT identified sets (period %s, horizon %d) ---\n",
+                pp, h))
     dose_vals <- datt_pp$d
     qtiles <- stats::quantile(dose_vals, probs = c(0.25, 0.5, 0.75))
 
@@ -100,8 +116,10 @@ summary.lpt <- function(object, ...) {
       att_pp <- object$att[object$att$period == pp &
                              object$att$B == object$B_hat, ]
       if (nrow(att_pp) == 0) next
+      h <- att_pp$horizon[1]
 
-      cat(sprintf("\n  --- ATT identified sets (period %s) ---\n", pp))
+      cat(sprintf("\n  --- ATT identified sets (period %s, horizon %d) ---\n",
+                  pp, h))
       dose_vals <- att_pp$d
       qtiles <- stats::quantile(dose_vals, probs = c(0.25, 0.5, 0.75))
 

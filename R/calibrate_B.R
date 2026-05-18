@@ -13,7 +13,7 @@
 #' @param pre_periods Vector. Pre-treatment period identifiers (in order).
 #'   Must have at least 2 elements.
 #' @param eval_points Numeric vector or NULL. Dose grid for evaluation.
-#' @param k Integer. Spline basis dimension. Default: 20.
+#' @param k Integer. Spline basis dimension. Default: 5.
 #' @param spline_bs Character. Spline basis type. Default: \code{"cr"}.
 #'
 #' @return A list with components:
@@ -29,13 +29,13 @@
 #' @examples
 #' data(sru)
 #' cal <- calibrate_B(sru, "commune", "year", "outcome", "dose",
-#'                     pre_periods = 1993:1999)
+#'                     pre_periods = -7:-1)
 #' cal$B_hat
 #'
 #' @export
 calibrate_B <- function(data, id_col, time_col, outcome_col, dose_col,
                          pre_periods, eval_points = NULL,
-                         k = 20, spline_bs = "cr") {
+                         k = 5, spline_bs = "cr") {
 
   pre_periods <- sort(pre_periods)
   if (length(pre_periods) < 2) {

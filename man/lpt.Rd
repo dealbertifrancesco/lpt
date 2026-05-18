@@ -14,7 +14,7 @@ lpt(
   pre_periods = NULL,
   B = "calibrate",
   eval_points = NULL,
-  k = 20,
+  k = 5,
   spline_bs = "cr"
 )
 }
@@ -46,7 +46,7 @@ computed for each value (sensitivity analysis). Default: \code{"calibrate"}.}
 \item{eval_points}{Numeric vector or NULL. Dose grid for evaluation.
 Default: 50 points over 5th-95th percentile of dose.}
 
-\item{k}{Integer. Spline basis dimension. Default: 20.}
+\item{k}{Integer. Spline basis dimension. Default: 5.}
 
 \item{spline_bs}{Character. Spline basis type (\code{"cr"} or \code{"tp"}).
 Default: \code{"cr"}.}
@@ -54,16 +54,17 @@ Default: \code{"cr"}.}
 \value{
 An S3 object of class \code{"lpt"} containing:
   \describe{
-    \item{datt}{Data frame with columns \code{period}, \code{d},
-      \code{lambda_d}, \code{B}, \code{datt_lower},
-      \code{datt_upper}.
-      Identified set for \eqn{\partial ATT(d|d)/\partial d}.}
+    \item{datt}{Data frame with columns \code{period}, \code{horizon},
+      \code{d}, \code{lambda_d}, \code{B}, \code{datt_lower},
+      \code{datt_upper}. Identified set width is \code{2*(horizon+1)*B}.}
     \item{att}{Data frame with ATT level bounds (NULL if no untreated units).
-      Identified set for \eqn{ATT(d|d)}.}
-    \item{att_o}{List with overall ATT summary (Corollary 1):
-      \code{att_o_bin} (binarized DiD), \code{D_bar} (mean dose among treated),
-      and for each B value: \code{att_o_lower}, \code{att_o_upper}.
-      NULL if no untreated units.}
+      Includes \code{horizon} column; width is \code{2*(horizon+1)*B*d}.}
+    \item{att_o}{Data frame with per-period overall ATT summary.
+      Includes \code{horizon} column; width is
+      \code{2*(horizon+1)*B*D_bar}. NULL if no untreated units.}
+    \item{att_o_agg}{Data frame with time-aggregated overall ATT across
+      all requested post-periods. NULL if single post-period or no
+      untreated units.}
     \item{B_hat}{The primary sensitivity parameter used.}
     \item{B_values}{All B values computed.}
     \item{calibration}{Output from \code{\link{calibrate_B}} if calibration
@@ -101,7 +102,7 @@ where \eqn{\Lambda(d) = E[\Delta Y | D=d] - E[\Delta Y | D=0]} and
 \examples{
 data(sru)
 fit <- lpt(sru, "commune", "year", "outcome", "dose",
-           post_period = 2019, pre_periods = 1993:1999,
+           post_period = 0:5, pre_periods = -7:-1,
            B = "calibrate")
 fit
 

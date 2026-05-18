@@ -28,7 +28,7 @@
 #' @examples
 #' data(sru)
 #' fit <- lpt(sru, "commune", "year", "outcome", "dose",
-#'            post_period = 2019, pre_periods = 1993:1999, B = 0)
+#'            post_period = 5, pre_periods = -7:-1, B = 0)
 #' if (requireNamespace("ggplot2", quietly = TRUE)) {
 #'   plot(fit, type = "datt")
 #' }
@@ -211,11 +211,19 @@ plot_pretrends <- function(x, col_pretrend, col_marker) {
 plot_sensitivity <- function(x, d0, B_grid, col_band, col_line, col_marker,
                               estimand = "datt", period = NULL) {
 
-  # Select period
+  # Select period and determine horizon
   pp <- if (is.null(period)) x$post_periods[1] else period
   pp_char <- as.character(pp)
   sr <- x$slopes[[pp_char]]
   ep <- sr$eval_points
+
+  horizon_t <- if ("horizon" %in% names(x$datt)) {
+    h_rows <- x$datt[x$datt$period == pp, ]
+    if (nrow(h_rows) > 0) h_rows$horizon[1] else 0L
+  } else {
+    0L
+  }
+  mult <- horizon_t + 1L
 
   if (estimand %in% c("datt", "att") && is.null(d0)) {
     stop("'d0' must be specified when estimand = '", estimand, "'. ",
@@ -244,11 +252,11 @@ plot_sensitivity <- function(x, d0, B_grid, col_band, col_line, col_marker,
       B       = B_grid,
       B_ratio = if (use_ratio) B_grid / x$B_hat else B_grid,
       center  = center_val,
-      is_lower = center_val - B_grid,
-      is_upper = center_val + B_grid
+      is_lower = center_val - mult * B_grid,
+      is_upper = center_val + mult * B_grid
     )
     y_label    <- expression(partialdiff * ATT(d) / partialdiff * d ~ "at" ~ d[0])
-    plot_title <- sprintf("Sensitivity: Dose-Response Slope at d = %.2f", d0_actual)
+    plot_title <- sprintf("Sensitivity: dATT at d = %.2f (horizon %d)", d0_actual, horizon_t)
 
   } else if (estimand == "att") {
     # IS_ATT(d0; B) = [Lambda(d0) - B*d0, Lambda(d0) + B*d0]
@@ -270,11 +278,11 @@ plot_sensitivity <- function(x, d0, B_grid, col_band, col_line, col_marker,
       B        = B_grid,
       B_ratio  = if (use_ratio) B_grid / x$B_hat else B_grid,
       center   = center_val,
-      is_lower = center_val - B_grid * d0_actual,
-      is_upper = center_val + B_grid * d0_actual
+      is_lower = center_val - mult * B_grid * d0_actual,
+      is_upper = center_val + mult * B_grid * d0_actual
     )
     y_label    <- expression(ATT(d[0]))
-    plot_title <- sprintf("Sensitivity: ATT(d|d) at d = %.2f", d0_actual)
+    plot_title <- sprintf("Sensitivity: ATT(d|d) at d = %.2f (horizon %d)", d0_actual, horizon_t)
 
   } else {
     # estimand == "att_o"
@@ -294,11 +302,11 @@ plot_sensitivity <- function(x, d0, B_grid, col_band, col_line, col_marker,
       B        = B_grid,
       B_ratio  = if (use_ratio) B_grid / x$B_hat else B_grid,
       center   = center_val,
-      is_lower = center_val - B_grid * D_bar,
-      is_upper = center_val + B_grid * D_bar
+      is_lower = center_val - mult * B_grid * D_bar,
+      is_upper = center_val + mult * B_grid * D_bar
     )
     y_label    <- expression(ATT^o)
-    plot_title <- "Sensitivity: Overall ATT"
+    plot_title <- sprintf("Sensitivity: ATT^o (horizon %d)", horizon_t)
   }
 
   p <- ggplot2::ggplot(sens_df, ggplot2::aes(x = .data[[x_var]]))

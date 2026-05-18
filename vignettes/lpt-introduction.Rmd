@@ -27,18 +27,18 @@ $$\lambda(d) = \frac{\partial ATT(d|d)}{\partial d} + \mu'(d)$$
 
 where $\lambda(d)$ is identified from data but the selection slope $\mu'(d)$
 is not. Under the Local Parallel Trends assumption, $|\mu'(d)| \leq B$,
-which yields identified sets:
+which yields identified sets whose width grows with the post-treatment
+horizon $t$:
 
-- **Derivative:** $IS_{\partial ATT}(d; B) = [\lambda(d) - B, \lambda(d) + B]$
-- **Level:** $IS_{ATT}(d; B) = [\Lambda(d) - Bd, \Lambda(d) + Bd]$
-- **Overall:** $IS_{ATT^o}(B) = [ATT^o_{bin} - B\bar{D}_+, ATT^o_{bin} + B\bar{D}_+]$
-
-where $\Lambda(d) = E[\Delta Y | D=d] - E[\Delta Y | D=0]$.
+- **Derivative:** $IS_{\partial ATT}(d, t; B) = [\lambda_t(d) - (t+1)B, \lambda_t(d) + (t+1)B]$
+- **Level:** $IS_{ATT}(d, t; B) = [\Lambda_t(d) - (t+1)Bd, \Lambda_t(d) + (t+1)Bd]$
+- **Overall:** $IS_{ATT^o_t}(B) = [ATT^o_{bin,t} - (t+1)B\bar{D}_+, ATT^o_{bin,t} + (t+1)B\bar{D}_+]$
 
 ## Example: French Social Housing (SRU Law)
 
-The bundled `sru` dataset contains panel data on 991 French communes
-affected by the 2000 Solidarity and Urban Renewal (SRU) law.
+The bundled `sru` dataset contains panel data on 991 French communes.
+Periods are re-indexed so treatment onset is period 0 (pre: -7 to -1,
+post: 0 to 5).
 
 ```{r data}
 library(lpt)
@@ -52,7 +52,7 @@ Setting $B = 0$ recovers standard DiD --- point identification:
 
 ```{r b0}
 fit0 <- lpt(sru, "commune", "year", "outcome", "dose",
-            post_period = 2019, pre_periods = 1993:1999, B = 0)
+            post_period = 5, pre_periods = -7:-1, B = 0)
 fit0
 ```
 
@@ -63,7 +63,7 @@ slopes $\hat{\mu}'_s(d)$:
 
 ```{r bcal, message = FALSE}
 fit <- lpt(sru, "commune", "year", "outcome", "dose",
-           post_period = 2019, pre_periods = 1993:1999,
+           post_period = 0:5, pre_periods = -7:-1,
            B = "calibrate")
 summary(fit)
 ```
@@ -93,7 +93,7 @@ Run over a grid of B values:
 ```{r sensitivity, message = FALSE}
 B_grid <- seq(0, 0.5, by = 0.05)
 fit_sens <- lpt(sru, "commune", "year", "outcome", "dose",
-                post_period = 2019, pre_periods = 1993:1999,
+                post_period = 5, pre_periods = -7:-1,
                 B = B_grid)
 summary(fit_sens)
 ```

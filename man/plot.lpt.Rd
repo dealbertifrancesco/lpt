@@ -53,7 +53,7 @@ and sensitivity analysis.
 \examples{
 data(sru)
 fit <- lpt(sru, "commune", "year", "outcome", "dose",
-           post_period = 2019, pre_periods = 1993:1999, B = 0)
+           post_period = 5, pre_periods = -7:-1, B = 0)
 if (requireNamespace("ggplot2", quietly = TRUE)) {
   plot(fit, type = "datt")
 }

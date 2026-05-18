@@ -1,7 +1,7 @@
 test_that("estimate_dose_slope returns correct structure on sru data", {
   data(sru, package = "lpt")
-  ref <- sru[sru$year == 1999, ]
-  post <- sru[sru$year == 2019, ]
+  ref <- sru[sru$year == -1, ]
+  post <- sru[sru$year == 5, ]
   m <- merge(ref[, c("commune", "outcome", "dose")],
              post[, c("commune", "outcome")],
              by = "commune", suffixes = c("_ref", "_post"))

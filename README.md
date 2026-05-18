@@ -18,17 +18,21 @@ $$\lambda(d) = \frac{\partial ATT(d|d)}{\partial d} + \mu'(d)$$
 
 where $\lambda(d)$ is identified from data but the **selection slope** $\mu'(d)$
 is not. Under the **Local Parallel Trends** assumption $|\mu'(d)| \leq B$,
-this yields identified sets for three estimands:
+this yields identified sets whose width grows with the post-treatment
+horizon $t$ (number of periods since treatment onset):
 
-$$IS_{\partial ATT}(d;\,B) = [\lambda(d) - B,\ \lambda(d) + B]$$
+$$IS_{\partial ATT}(d, t;\,B) = [\lambda_t(d) - (t+1)B,\ \lambda_t(d) + (t+1)B]$$
 
-$$IS_{ATT}(d;\,B) = [\Lambda(d) - Bd,\ \Lambda(d) + Bd]$$
+$$IS_{ATT}(d, t;\,B) = [\Lambda_t(d) - (t+1)Bd,\ \Lambda_t(d) + (t+1)Bd]$$
 
-$$IS_{ATT^o}(B) = [\tilde\Lambda_+ - B\bar{D}_+,\ \tilde\Lambda_+ + B\bar{D}_+]$$
+The identified set widens linearly with the horizon because each
+additional post-period accumulates one more unit of potential
+counterfactual drift.
 
-where $\Lambda(d) = E[\Delta Y \mid D=d] - E[\Delta Y \mid D=0]$,
-$\tilde\Lambda_+ = E[\Delta Y \mid D>0] - E[\Delta Y \mid D=0]$, and
-$\bar{D}_+ = E[D \mid D>0]$.
+The package also computes a **time-aggregated** overall ATT across all
+requested post-periods ($ATT^0$), with identified set:
+
+$$IS_{ATT^0}(B) = \left[\bar\Lambda^{agg} - \frac{T+2}{2}B\bar{D}_+,\ \bar\Lambda^{agg} + \frac{T+2}{2}B\bar{D}_+\right]$$
 
 The parameter $B$ governs how far from standard parallel trends the
 selection process is allowed to deviate. Setting $B = 0$ recovers point
@@ -41,9 +45,9 @@ user or **calibrated from pre-treatment periods**.
 library(lpt)
 data(sru)
 
-# Estimate with calibrated B from pre-treatment periods
+# Estimate with calibrated B across all post-periods
 fit <- lpt(sru, "commune", "year", "outcome", "dose",
-           post_period = 2019, pre_periods = 1993:1999,
+           post_period = 0:5, pre_periods = -7:-1,
            B = "calibrate")
 summary(fit)
 ```
@@ -51,7 +55,7 @@ summary(fit)
 ### Plotting identified sets
 
 ```r
-# Dose-response slope IS
+# Dose-response slope IS (faceted by period)
 plot(fit, type = "datt")
 
 # ATT level IS (requires untreated units)
@@ -67,20 +71,18 @@ The sensitivity plot shows how an identified set widens as $B$ grows.
 The `estimand` argument selects which quantity to trace:
 
 ```r
-# Sensitivity of the overall ATT^o  [default — no dose needed]
+# Sensitivity of the overall ATT^o  [default -- no dose needed]
 plot(fit, type = "sensitivity")
 
-# Sensitivity of ATT(d|d) at a specific dose — d0 required
+# Sensitivity of ATT(d|d) at a specific dose -- d0 required
 plot(fit, type = "sensitivity", estimand = "att", d0 = 0.3)
 
-# Sensitivity of the dose-response slope at a specific dose — d0 required
+# Sensitivity of the dose-response slope at a specific dose
 plot(fit, type = "sensitivity", estimand = "datt", d0 = 0.3)
 ```
 
 The vertical dotted line marks $\hat{B}$ (calibrated value); the x-axis is
-expressed as $B/\hat{B}$ when calibration was used, making it easy to read
-off "how much larger than the pre-trend bound does B need to be for the
-conclusion to overturn?"
+expressed as $B/\hat{B}$ when calibration was used.
 
 ## Key Functions
 
@@ -94,8 +96,9 @@ conclusion to overturn?"
 ## Data
 
 The package ships with the `sru` dataset: panel data on 991 French communes
-affected by the 2000 (SRU) French Law, with annual
-observations from 1993 to 2019.
+affected by the 2000 SRU French Law. Periods are re-indexed so that
+treatment onset corresponds to period 0 (pre-treatment: -7 to -1;
+post-treatment: 0 to 5).
 
 ```r
 data(sru)
@@ -104,14 +107,16 @@ data(sru)
 
 ## Multiple Post-Periods
 
-Pass a vector to `post_period` to estimate across several waves:
+Pass a vector to `post_period` to estimate across several horizons.
+Identified sets widen with horizon via the $(t+1)$ multiplier:
 
 ```r
 fit_multi <- lpt(sru, "commune", "year", "outcome", "dose",
-                 post_period = c(2005, 2010, 2015, 2019),
-                 pre_periods = 1993:1999,
+                 post_period = c(0, 2, 5),
+                 pre_periods = -7:-1,
                  B = "calibrate")
 plot(fit_multi, type = "datt")   # faceted by period
+summary(fit_multi)               # shows per-period + aggregated ATT
 ```
 
 ## B Calibration Details
