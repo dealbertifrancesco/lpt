@@ -38,6 +38,9 @@
 #'     \item{att_o_agg}{Data frame with time-aggregated overall ATT across
 #'       all requested post-periods. NULL if single post-period or no
 #'       untreated units.}
+#'     \item{pre_att_o}{Data frame with pre-period binary DiD estimates
+#'       (columns \code{period}, \code{att_o_bin}). Used by the event study
+#'       plot. NULL if no untreated units or fewer than 2 pre-periods.}
 #'     \item{B_hat}{The primary sensitivity parameter used.}
 #'     \item{B_values}{All B values computed.}
 #'     \item{calibration}{Output from \code{\link{calibrate_B}} if calibration
@@ -291,6 +294,40 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
     message("No untreated units (dose = 0). ATT level bounds not computed.")
   }
 
+  # --- Pre-period binary DiD (for event study plot) ---
+  pre_att_o <- NULL
+  if (has_untreated && length(pre_period_set) >= 2) {
+    pre_att_o_list <- list()
+    pre_no_ref <- pre_period_set[pre_period_set != ref_period]
+
+    for (s in pre_no_ref) {
+      s_data <- data[data[[time_col]] == s, ]
+      merged_pre <- merge(
+        ref_data[, c(id_col, outcome_col, dose_col), drop = FALSE],
+        s_data[, c(id_col, outcome_col), drop = FALSE],
+        by = id_col, suffixes = c("_ref", "_s")
+      )
+      dy_pre <- merged_pre[[paste0(outcome_col, "_s")]] -
+                merged_pre[[paste0(outcome_col, "_ref")]]
+      d_pre <- merged_pre[[dose_col]]
+      treated_pre <- d_pre > 0
+      untreated_pre <- d_pre == 0
+
+      if (sum(treated_pre) > 0 && sum(untreated_pre) > 0) {
+        beta_s <- mean(dy_pre[treated_pre]) - mean(dy_pre[untreated_pre])
+        pre_att_o_list[[length(pre_att_o_list) + 1]] <- data.frame(
+          period = s,
+          att_o_bin = beta_s
+        )
+      }
+    }
+
+    if (length(pre_att_o_list) > 0) {
+      pre_att_o <- do.call(rbind, pre_att_o_list)
+      rownames(pre_att_o) <- NULL
+    }
+  }
+
   # --- Assemble output ---
   structure(
     list(
@@ -298,6 +335,7 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
       att = att,
       att_o = att_o,
       att_o_agg = att_o_agg,
+      pre_att_o = pre_att_o,
       B_hat = B_hat,
       B_values = B_values,
       calibration = calibration_result,

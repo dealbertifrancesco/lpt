@@ -6,7 +6,7 @@
 \usage{
 \method{plot}{lpt}(
   x,
-  type = c("datt", "att", "pretrends", "sensitivity"),
+  type = c("datt", "att", "pretrends", "sensitivity", "eventstudy"),
   period = NULL,
   d0 = NULL,
   B_grid = NULL,
@@ -19,7 +19,7 @@
 \item{x}{An object of class \code{"lpt"}.}
 
 \item{type}{Character. Plot type: \code{"datt"} (default), \code{"att"},
-\code{"pretrends"}, \code{"sensitivity"}.}
+\code{"pretrends"}, \code{"sensitivity"}, \code{"eventstudy"}.}
 
 \item{period}{Scalar or NULL. Which post-period to plot. If NULL and
 multiple post-periods exist, plots all periods faceted. Default: NULL.}

@@ -65,6 +65,9 @@ An S3 object of class \code{"lpt"} containing:
     \item{att_o_agg}{Data frame with time-aggregated overall ATT across
       all requested post-periods. NULL if single post-period or no
       untreated units.}
+    \item{pre_att_o}{Data frame with pre-period binary DiD estimates
+      (columns \code{period}, \code{att_o_bin}). Used by the event study
+      plot. NULL if no untreated units or fewer than 2 pre-periods.}
     \item{B_hat}{The primary sensitivity parameter used.}
     \item{B_values}{All B values computed.}
     \item{calibration}{Output from \code{\link{calibrate_B}} if calibration

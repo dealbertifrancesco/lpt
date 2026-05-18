@@ -73,6 +73,33 @@ test_that("plot methods do not error", {
   expect_no_error(plot(fit, type = "att"))
   expect_no_error(plot(fit, type = "pretrends"))
   expect_no_error(plot(fit, type = "sensitivity"))
+  expect_no_error(plot(fit, type = "eventstudy"))
+})
+
+test_that("pre_att_o is computed for event study", {
+  data(sru, package = "lpt")
+  fit <- lpt(sru, "commune", "year", "outcome", "dose",
+             post_period = 0:5, pre_periods = -7:-1, B = 0)
+
+  expect_true(!is.null(fit$pre_att_o))
+  expect_true(is.data.frame(fit$pre_att_o))
+  expect_true(all(c("period", "att_o_bin") %in% names(fit$pre_att_o)))
+  # Should have entries for pre-periods -7 to -2 (not ref period -1)
+  expect_equal(nrow(fit$pre_att_o), 6)
+  expect_true(all(fit$pre_att_o$period %in% -7:-2))
+  expect_false(-1 %in% fit$pre_att_o$period)
+})
+
+test_that("eventstudy plot returns ggplot object", {
+  skip_if_not_installed("ggplot2")
+
+  data(sru, package = "lpt")
+  fit <- lpt(sru, "commune", "year", "outcome", "dose",
+             post_period = 0:5, pre_periods = -7:-1,
+             B = "calibrate")
+
+  p <- plot(fit, type = "eventstudy")
+  expect_s3_class(p, "ggplot")
 })
 
 test_that("multi-period IS width scales with (t+1)", {

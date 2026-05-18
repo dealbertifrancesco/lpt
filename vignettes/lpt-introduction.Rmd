@@ -73,6 +73,9 @@ summary(fit)
 ```{r plots, fig.width = 8, fig.height = 5, message = FALSE}
 library(ggplot2)
 
+# Event study: ATT^o across pre and post periods
+plot(fit, type = "eventstudy")
+
 # Dose-response slope identified set
 plot(fit, type = "datt")
 

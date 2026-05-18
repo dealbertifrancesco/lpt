@@ -52,9 +52,12 @@ fit <- lpt(sru, "commune", "year", "outcome", "dose",
 summary(fit)
 ```
 
-### Plotting identified sets
+### Plotting
 
 ```r
+# Event study: ATT^o across all periods (pre + post)
+plot(fit, type = "eventstudy")
+
 # Dose-response slope IS (faceted by period)
 plot(fit, type = "datt")
 
@@ -103,20 +106,6 @@ post-treatment: 0 to 5).
 ```r
 data(sru)
 ?sru
-```
-
-## Multiple Post-Periods
-
-Pass a vector to `post_period` to estimate across several horizons.
-Identified sets widen with horizon via the $(t+1)$ multiplier:
-
-```r
-fit_multi <- lpt(sru, "commune", "year", "outcome", "dose",
-                 post_period = c(0, 2, 5),
-                 pre_periods = -7:-1,
-                 B = "calibrate")
-plot(fit_multi, type = "datt")   # faceted by period
-summary(fit_multi)               # shows per-period + aggregated ATT
 ```
 
 ## B Calibration Details

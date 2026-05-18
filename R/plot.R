@@ -5,7 +5,7 @@
 #'
 #' @param x An object of class \code{"lpt"}.
 #' @param type Character. Plot type: \code{"datt"} (default), \code{"att"},
-#'   \code{"pretrends"}, \code{"sensitivity"}.
+#'   \code{"pretrends"}, \code{"sensitivity"}, \code{"eventstudy"}.
 #' @param period Scalar or NULL. Which post-period to plot. If NULL and
 #'   multiple post-periods exist, plots all periods faceted. Default: NULL.
 #' @param d0 Numeric. Required dose value when \code{estimand} is \code{"datt"}
@@ -35,7 +35,8 @@
 #'
 #' @method plot lpt
 #' @export
-plot.lpt <- function(x, type = c("datt", "att", "pretrends", "sensitivity"),
+plot.lpt <- function(x, type = c("datt", "att", "pretrends", "sensitivity",
+                                  "eventstudy"),
                       period = NULL, d0 = NULL, B_grid = NULL,
                       estimand = c("att_o", "datt", "att"),
                       true_curve = NULL, ...) {
@@ -63,7 +64,8 @@ plot.lpt <- function(x, type = c("datt", "att", "pretrends", "sensitivity"),
     "att" = plot_att(x, period, col_band, col_line, true_curve),
     "pretrends" = plot_pretrends(x, col_pretrend, col_marker),
     "sensitivity" = plot_sensitivity(x, d0, B_grid, col_band, col_line, col_marker,
-                                      estimand = estimand, period = period)
+                                      estimand = estimand, period = period),
+    "eventstudy" = plot_eventstudy(x, col_band, col_pretrend)
   )
 
   print(p)
@@ -337,4 +339,93 @@ plot_sensitivity <- function(x, d0, B_grid, col_band, col_line, col_marker,
   }
 
   p + ggplot2::theme_minimal(base_size = 12)
+}
+
+
+plot_eventstudy <- function(x, col_band, col_pretrend) {
+  if (!x$has_untreated) {
+    stop("Event study plot requires untreated units (dose = 0).")
+  }
+  if (is.null(x$att_o)) {
+    stop("Event study plot requires att_o (run with untreated units).")
+  }
+
+  # --- Post-period data (point estimate + IS at primary B) ---
+  att_o_B <- x$att_o[x$att_o$B == x$B_hat, ]
+  post_df <- data.frame(
+    period   = att_o_B$period,
+    estimate = att_o_B$att_o_bin,
+    lower    = att_o_B$att_o_lower,
+    upper    = att_o_B$att_o_upper,
+    group    = "Post"
+  )
+
+  # --- Pre-period data (point estimates only) ---
+  pre_df <- NULL
+  if (!is.null(x$pre_att_o)) {
+    pre_df <- data.frame(
+      period   = x$pre_att_o$period,
+      estimate = x$pre_att_o$att_o_bin,
+      lower    = NA_real_,
+      upper    = NA_real_,
+      group    = "Pre"
+    )
+  }
+
+  # --- Reference period (normalized to zero) ---
+  ref_df <- data.frame(
+    period   = x$ref_period,
+    estimate = 0,
+    lower    = NA_real_,
+    upper    = NA_real_,
+    group    = "Reference"
+  )
+
+  plot_df <- rbind(pre_df, ref_df, post_df)
+  plot_df$group <- factor(plot_df$group, levels = c("Pre", "Reference", "Post"))
+
+  # --- Build plot ---
+  p <- ggplot2::ggplot(plot_df, ggplot2::aes(x = .data$period, y = .data$estimate))
+
+  # IS bars for post-periods only
+  post_rows <- plot_df$group == "Post"
+  if (any(post_rows)) {
+    p <- p +
+      ggplot2::geom_errorbar(
+        data = plot_df[post_rows, ],
+        ggplot2::aes(ymin = .data$lower, ymax = .data$upper),
+        width = 0.2, color = col_band, linewidth = 0.7
+      )
+  }
+
+  p <- p +
+    # Points colored by group
+    ggplot2::geom_point(
+      ggplot2::aes(shape = .data$group, color = .data$group),
+      size = 2.5
+    ) +
+    # Zero reference line
+    ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "grey40") +
+    # Treatment onset line
+    ggplot2::geom_vline(
+      xintercept = min(x$post_periods) - 0.5,
+      linetype = "dotted", color = "grey40", linewidth = 0.6
+    ) +
+    ggplot2::scale_color_manual(
+      values = c("Pre" = col_pretrend, "Reference" = "grey40", "Post" = col_band),
+      guide = "none"
+    ) +
+    ggplot2::scale_shape_manual(
+      values = c("Pre" = 16, "Reference" = 1, "Post" = 16),
+      guide = "none"
+    ) +
+    ggplot2::labs(
+      x = "Period",
+      y = expression(ATT^o ~ (binary ~ DiD)),
+      title = "Event Study"
+    ) +
+    ggplot2::scale_x_continuous(breaks = sort(unique(plot_df$period))) +
+    ggplot2::theme_minimal(base_size = 12)
+
+  p
 }
