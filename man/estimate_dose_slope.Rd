@@ -50,3 +50,8 @@ result <- estimate_dose_slope(m$delta_y, m$dose)
 plot(result$eval_points, result$lambda_d, type = "l")
 
 }
+\references{
+Wood SN (2017).
+\emph{Generalized Additive Models: An Introduction with R} (2nd ed.).
+Chapman and Hall/CRC.
+}

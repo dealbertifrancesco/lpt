@@ -13,6 +13,8 @@ lpt(
   post_period,
   pre_periods = NULL,
   B = "calibrate",
+  method = c("gam", "contdid"),
+  contdid_args = list(),
   eval_points = NULL,
   k = 5,
   spline_bs = "cr"
@@ -43,13 +45,26 @@ parameter bounding the selection slope \eqn{|\mu'(d)| \leq B}. If
 parallel trends (point identification). If a numeric vector, bounds are
 computed for each value (sensitivity analysis). Default: \code{"calibrate"}.}
 
-\item{eval_points}{Numeric vector or NULL. Dose grid for evaluation.
-Default: 50 points over 5th-95th percentile of dose.}
+\item{method}{Character. Estimation method: \code{"gam"} (default, penalized
+splines via \code{mgcv}) or \code{"contdid"} (B-splines via the
+\code{contdid} package; Callaway, Goodman-Bacon & Sant'Anna 2024).}
 
-\item{k}{Integer. Spline basis dimension. Default: 5.}
+\item{contdid_args}{Named list. Additional arguments passed to
+\code{contdid::cont_did()} when \code{method = "contdid"}. Common options:
+\code{num_knots} (default 1), \code{degree} (default 3),
+\code{biters} (bootstrap iterations, default 500),
+\code{control_group} (default \code{"notyettreated"}).
+Ignored when \code{method = "gam"}.}
+
+\item{eval_points}{Numeric vector or NULL. Dose grid for evaluation.
+Default: 50 points over 5th-95th percentile of dose. Ignored when
+\code{method = "contdid"} (determined by contdid internally).}
+
+\item{k}{Integer. Spline basis dimension for GAM method. Default: 5.
+Ignored when \code{method = "contdid"}.}
 
 \item{spline_bs}{Character. Spline basis type (\code{"cr"} or \code{"tp"}).
-Default: \code{"cr"}.}
+Default: \code{"cr"}. Ignored when \code{method = "contdid"}.}
 }
 \value{
 An S3 object of class \code{"lpt"} containing:
@@ -79,6 +94,8 @@ An S3 object of class \code{"lpt"} containing:
     \item{has_untreated}{Logical. Whether untreated units (D=0) exist.}
     \item{post_periods}{The post-period(s) estimated.}
     \item{ref_period}{The reference (last pre-) period used for differencing.}
+    \item{contdid_fit}{Raw \code{pte_results} object from \code{contdid}
+      (NULL when \code{method = "gam"}).}
     \item{specifications}{List of all estimation settings.}
   }
 }
@@ -109,4 +126,13 @@ fit <- lpt(sru, "commune", "year", "outcome", "dose",
            B = "calibrate")
 fit
 
+}
+\references{
+Callaway B, Goodman-Bacon A, Sant'Anna PHC (2024).
+\dQuote{Difference-in-differences with a continuous treatment.}
+\emph{National Bureau of Economic Research}.
+
+Wood SN (2017).
+\emph{Generalized Additive Models: An Introduction with R} (2nd ed.).
+Chapman and Hall/CRC.
 }

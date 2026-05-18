@@ -4,6 +4,11 @@
 #' \eqn{\lambda(d) = \frac{\partial}{\partial d} E[\Delta Y \mid D = d]}
 #' using cubic regression splines with REML smoothing parameter selection.
 #'
+#' @references
+#' Wood SN (2017).
+#' \emph{Generalized Additive Models: An Introduction with R} (2nd ed.).
+#' Chapman and Hall/CRC.
+#'
 #' @param delta_y Numeric vector. First differences \eqn{\Delta Y_i}.
 #' @param dose Numeric vector. Doses \eqn{D_i}. Same length as \code{delta_y}.
 #' @param eval_points Numeric vector or NULL. Dose values at which to evaluate.

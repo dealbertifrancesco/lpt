@@ -137,12 +137,23 @@ summary.lpt <- function(object, ...) {
   }
 
   # --- Footer ---
-  cat(sprintf(
-    "\n  n = %d | Spline: %s (k = %d)\n",
-    object$n,
-    object$specifications$spline_bs,
-    object$specifications$k
-  ))
+  meth <- object$specifications$method
+  if (is.null(meth) || meth == "gam") {
+    cat(sprintf(
+      "\n  n = %d | Method: GAM | Spline: %s (k = %d)\n",
+      object$n,
+      object$specifications$spline_bs,
+      object$specifications$k
+    ))
+  } else {
+    cd_args <- object$specifications$contdid_args
+    cat(sprintf(
+      "\n  n = %d | Method: contdid | knots = %s, degree = %s\n",
+      object$n,
+      if (!is.null(cd_args$num_knots)) cd_args$num_knots else "1",
+      if (!is.null(cd_args$degree)) cd_args$degree else "3"
+    ))
+  }
   rule()
 
   invisible(object)

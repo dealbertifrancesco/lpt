@@ -87,11 +87,29 @@ plot(fit, type = "sensitivity", estimand = "datt", d0 = 0.3)
 The vertical dotted line marks $\hat{B}$ (calibrated value); the x-axis is
 expressed as $B/\hat{B}$ when calibration was used.
 
+### Alternative backend: contdid
+
+The `method = "contdid"` option uses B-spline estimation from
+[Callaway, Goodman-Bacon & Sant'Anna (2024)](https://doi.org/10.3386/w32117)
+instead of GAM-based penalized splines:
+
+```r
+fit_cd <- lpt(sru, "commune", "year", "outcome", "dose",
+              post_period = 0:5, pre_periods = -7:-1,
+              B = "calibrate", method = "contdid",
+              contdid_args = list(num_knots = 1, degree = 3))
+summary(fit_cd)
+plot(fit_cd, type = "eventstudy")
+```
+
+All plot and summary methods work identically. The `contdid` package must be
+installed separately (`remotes::install_github("bcallaway11/contdid")`).
+
 ## Key Functions
 
 | Function | Description |
 |----------|-------------|
-| `lpt()` | Main estimation function |
+| `lpt()` | Main estimation (`method = "gam"` or `"contdid"`) |
 | `calibrate_B()` | Calibrate B from pre-treatment periods |
 | `plot.lpt()` | Visualize identified sets and sensitivity |
 | `summary.lpt()` | Tabular summary at dose quartiles |
@@ -119,7 +137,13 @@ these slopes with $\pm\hat{B}$ bands.
 ## Dependencies
 
 - **Required:** `mgcv`, `stats`
-- **Suggested:** `ggplot2` (plotting), `testthat`, `knitr`, `rmarkdown`
+- **Suggested:** `contdid` (alternative estimation backend), `ggplot2` (plotting), `testthat`, `knitr`, `rmarkdown`
+
+## References
+
+- Dealberti F (2026). *Local Parallel Trends for Continuous DiD*.
+- Callaway B, Goodman-Bacon A, Sant'Anna PHC (2024). *Difference-in-differences with a continuous treatment*. NBER Working Paper.
+- Wood SN (2017). *Generalized Additive Models: An Introduction with R* (2nd ed.). Chapman and Hall/CRC.
 
 ## AI Use Acknowledgment
 

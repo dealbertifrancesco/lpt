@@ -20,11 +20,22 @@
 #'   \code{"calibrate"}, estimated from pre-treatment periods. If 0, standard
 #'   parallel trends (point identification). If a numeric vector, bounds are
 #'   computed for each value (sensitivity analysis). Default: \code{"calibrate"}.
+#' @param method Character. Estimation method: \code{"gam"} (default, penalized
+#'   splines via \code{mgcv}) or \code{"contdid"} (B-splines via the
+#'   \code{contdid} package; Callaway, Goodman-Bacon & Sant'Anna 2024).
+#' @param contdid_args Named list. Additional arguments passed to
+#'   \code{contdid::cont_did()} when \code{method = "contdid"}. Common options:
+#'   \code{num_knots} (default 1), \code{degree} (default 3),
+#'   \code{biters} (bootstrap iterations, default 500),
+#'   \code{control_group} (default \code{"notyettreated"}).
+#'   Ignored when \code{method = "gam"}.
 #' @param eval_points Numeric vector or NULL. Dose grid for evaluation.
-#'   Default: 50 points over 5th-95th percentile of dose.
-#' @param k Integer. Spline basis dimension. Default: 5.
+#'   Default: 50 points over 5th-95th percentile of dose. Ignored when
+#'   \code{method = "contdid"} (determined by contdid internally).
+#' @param k Integer. Spline basis dimension for GAM method. Default: 5.
+#'   Ignored when \code{method = "contdid"}.
 #' @param spline_bs Character. Spline basis type (\code{"cr"} or \code{"tp"}).
-#'   Default: \code{"cr"}.
+#'   Default: \code{"cr"}. Ignored when \code{method = "contdid"}.
 #' @return An S3 object of class \code{"lpt"} containing:
 #'   \describe{
 #'     \item{datt}{Data frame with columns \code{period}, \code{horizon},
@@ -52,8 +63,19 @@
 #'     \item{has_untreated}{Logical. Whether untreated units (D=0) exist.}
 #'     \item{post_periods}{The post-period(s) estimated.}
 #'     \item{ref_period}{The reference (last pre-) period used for differencing.}
+#'     \item{contdid_fit}{Raw \code{pte_results} object from \code{contdid}
+#'       (NULL when \code{method = "gam"}).}
 #'     \item{specifications}{List of all estimation settings.}
 #'   }
+#'
+#' @references
+#' Callaway B, Goodman-Bacon A, Sant'Anna PHC (2024).
+#' \dQuote{Difference-in-differences with a continuous treatment.}
+#' \emph{National Bureau of Economic Research}.
+#'
+#' Wood SN (2017).
+#' \emph{Generalized Additive Models: An Introduction with R} (2nd ed.).
+#' Chapman and Hall/CRC.
 #'
 #' @details
 #' The key decomposition is:
@@ -80,8 +102,11 @@
 #' @export
 lpt <- function(data, id_col, time_col, outcome_col, dose_col,
                 post_period, pre_periods = NULL,
-                B = "calibrate", eval_points = NULL,
+                B = "calibrate", method = c("gam", "contdid"),
+                contdid_args = list(), eval_points = NULL,
                 k = 5, spline_bs = "cr") {
+
+  method <- match.arg(method)
 
   # --- Input validation ---
   if (!is.data.frame(data)) stop("data must be a data.frame.")
@@ -126,144 +151,176 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
   dose_vec <- ref_data[[dose_col]]
   has_untreated <- any(dose_vec == 0)
 
-  # --- Estimate dose slope for each post-period ---
-  slopes <- list()
-  datt_all <- list()
-  att_all <- list()
-  att_o_all <- list()
+  contdid_fit <- NULL
 
-  for (pp in post_periods) {
-    post_data <- data[data[[time_col]] == pp, ]
+  # ==================================================================
+  #  Estimation: branch on method
+  # ==================================================================
 
-    merged <- merge(
-      ref_data[, c(id_col, outcome_col, dose_col), drop = FALSE],
-      post_data[, c(id_col, outcome_col), drop = FALSE],
-      by = id_col, suffixes = c("_ref", "_post")
-    )
+  if (method == "gam") {
 
-    outcome_ref_col <- paste0(outcome_col, "_ref")
-    outcome_post_col <- paste0(outcome_col, "_post")
-    delta_y <- merged[[outcome_post_col]] - merged[[outcome_ref_col]]
-    wd <- merged[[dose_col]]
+    # --- GAM: estimate dose slope for each post-period ---
+    slopes <- list()
+    datt_all <- list()
+    att_all <- list()
+    att_o_all <- list()
 
-    slope_result <- estimate_dose_slope(
-      delta_y = delta_y,
-      dose = wd,
-      eval_points = eval_points,
-      k = k,
-      spline_bs = spline_bs
-    )
-
-    # Lock in eval_points for consistency across periods
-    if (is.null(eval_points) && length(slopes) == 0) {
-      eval_points <- slope_result$eval_points
-    }
-
-    slopes[[as.character(pp)]] <- slope_result
-  }
-
-  # --- Handle B ---
-  calibration_result <- NULL
-
-  if (is.character(B) && B == "calibrate") {
-    if (length(pre_period_set) < 2) {
-      stop("B = 'calibrate' requires at least 2 pre-treatment periods. ",
-           "Supply B as a numeric value, or provide data with more pre-periods.")
-    }
-
-    first_slope <- slopes[[1]]
-
-    calibration_result <- calibrate_B(
-      data = data,
-      id_col = id_col,
-      time_col = time_col,
-      outcome_col = outcome_col,
-      dose_col = dose_col,
-      pre_periods = pre_period_set,
-      eval_points = first_slope$eval_points,
-      k = k,
-      spline_bs = spline_bs
-    )
-    B_hat <- calibration_result$B_hat
-    B_values <- B_hat
-    message(sprintf("Calibrated B = %.4f from %d pre-period pair(s).",
-                    B_hat, length(pre_period_set) - 1))
-  } else if (is.numeric(B)) {
-    B_values <- as.numeric(B)
-    if (any(!is.finite(B_values)) || any(B_values < 0)) {
-      stop("B must be non-negative finite numeric values.")
-    }
-    B_hat <- max(B_values)
-  } else {
-    stop("B must be numeric or 'calibrate'.")
-  }
-
-  # --- Construct identified sets per period ---
-  for (pp in post_periods) {
-    pp_char <- as.character(pp)
-    sr <- slopes[[pp_char]]
-    ep <- sr$eval_points
-    lambda_d <- sr$lambda_d
-    horizon_t <- as.integer(pp - min_post)
-    mult <- horizon_t + 1L
-
-    # IS_{dATT}(d, t; B) = [lambda_t(d) - (t+1)B, lambda_t(d) + (t+1)B]
-    for (b in B_values) {
-      datt_all[[length(datt_all) + 1]] <- data.frame(
-        period = pp,
-        horizon = horizon_t,
-        d = ep,
-        lambda_d = lambda_d,
-        B = b,
-        datt_lower = lambda_d - mult * b,
-        datt_upper = lambda_d + mult * b
-      )
-    }
-
-    # IS_{ATT}(d, t; B) = [Lambda_t(d) - (t+1)Bd, Lambda_t(d) + (t+1)Bd]
-    if (has_untreated) {
-      att_pp <- compute_att_bounds(sr, B_values, dose_vec,
-                                    period = pp, horizon = horizon_t)
-      att_all[[length(att_all) + 1]] <- att_pp
-    }
-
-    # IS_{ATT^o_t}(B) = [att_o_bin - (t+1)*B*D_bar, att_o_bin + (t+1)*B*D_bar]
-    if (has_untreated) {
+    for (pp in post_periods) {
       post_data <- data[data[[time_col]] == pp, ]
-      merged_atto <- merge(
+
+      merged <- merge(
         ref_data[, c(id_col, outcome_col, dose_col), drop = FALSE],
         post_data[, c(id_col, outcome_col), drop = FALSE],
         by = id_col, suffixes = c("_ref", "_post")
       )
-      dy <- merged_atto[[paste0(outcome_col, "_post")]] -
-            merged_atto[[paste0(outcome_col, "_ref")]]
-      d_merged <- merged_atto[[dose_col]]
 
-      treated_idx <- d_merged > 0
-      untreated_idx <- d_merged == 0
-      att_o_bin <- mean(dy[treated_idx]) - mean(dy[untreated_idx])
-      D_bar <- mean(d_merged[treated_idx])
+      outcome_ref_col <- paste0(outcome_col, "_ref")
+      outcome_post_col <- paste0(outcome_col, "_post")
+      delta_y <- merged[[outcome_post_col]] - merged[[outcome_ref_col]]
+      wd <- merged[[dose_col]]
 
+      slope_result <- estimate_dose_slope(
+        delta_y = delta_y,
+        dose = wd,
+        eval_points = eval_points,
+        k = k,
+        spline_bs = spline_bs
+      )
+
+      # Lock in eval_points for consistency across periods
+      if (is.null(eval_points) && length(slopes) == 0) {
+        eval_points <- slope_result$eval_points
+      }
+
+      slopes[[as.character(pp)]] <- slope_result
+    }
+
+    # --- Handle B ---
+    calibration_result <- NULL
+
+    if (is.character(B) && B == "calibrate") {
+      if (length(pre_period_set) < 2) {
+        stop("B = 'calibrate' requires at least 2 pre-treatment periods. ",
+             "Supply B as a numeric value, or provide data with more pre-periods.")
+      }
+
+      first_slope <- slopes[[1]]
+
+      calibration_result <- calibrate_B(
+        data = data,
+        id_col = id_col,
+        time_col = time_col,
+        outcome_col = outcome_col,
+        dose_col = dose_col,
+        pre_periods = pre_period_set,
+        eval_points = first_slope$eval_points,
+        k = k,
+        spline_bs = spline_bs
+      )
+      B_hat <- calibration_result$B_hat
+      B_values <- B_hat
+      message(sprintf("Calibrated B = %.4f from %d pre-period pair(s).",
+                      B_hat, length(pre_period_set) - 1))
+    } else if (is.numeric(B)) {
+      B_values <- as.numeric(B)
+      if (any(!is.finite(B_values)) || any(B_values < 0)) {
+        stop("B must be non-negative finite numeric values.")
+      }
+      B_hat <- max(B_values)
+    } else {
+      stop("B must be numeric or 'calibrate'.")
+    }
+
+    # --- Construct identified sets per period ---
+    for (pp in post_periods) {
+      pp_char <- as.character(pp)
+      sr <- slopes[[pp_char]]
+      ep <- sr$eval_points
+      lambda_d <- sr$lambda_d
+      horizon_t <- as.integer(pp - min_post)
+      mult <- horizon_t + 1L
+
+      # IS_{dATT}(d, t; B) = [lambda_t(d) - (t+1)B, lambda_t(d) + (t+1)B]
       for (b in B_values) {
-        att_o_all[[length(att_o_all) + 1]] <- data.frame(
+        datt_all[[length(datt_all) + 1]] <- data.frame(
           period = pp,
           horizon = horizon_t,
-          att_o_bin = att_o_bin,
-          D_bar = D_bar,
+          d = ep,
+          lambda_d = lambda_d,
           B = b,
-          att_o_lower = att_o_bin - mult * b * D_bar,
-          att_o_upper = att_o_bin + mult * b * D_bar
+          datt_lower = lambda_d - mult * b,
+          datt_upper = lambda_d + mult * b
         )
       }
+
+      # IS_{ATT}(d, t; B) = [Lambda_t(d) - (t+1)Bd, Lambda_t(d) + (t+1)Bd]
+      if (has_untreated) {
+        att_pp <- compute_att_bounds(sr, B_values, dose_vec,
+                                      period = pp, horizon = horizon_t)
+        att_all[[length(att_all) + 1]] <- att_pp
+      }
+
+      # IS_{ATT^o_t}(B) = [att_o_bin - (t+1)*B*D_bar, att_o_bin + (t+1)*B*D_bar]
+      if (has_untreated) {
+        post_data <- data[data[[time_col]] == pp, ]
+        merged_atto <- merge(
+          ref_data[, c(id_col, outcome_col, dose_col), drop = FALSE],
+          post_data[, c(id_col, outcome_col), drop = FALSE],
+          by = id_col, suffixes = c("_ref", "_post")
+        )
+        dy <- merged_atto[[paste0(outcome_col, "_post")]] -
+              merged_atto[[paste0(outcome_col, "_ref")]]
+        d_merged <- merged_atto[[dose_col]]
+
+        treated_idx <- d_merged > 0
+        untreated_idx <- d_merged == 0
+        att_o_bin <- mean(dy[treated_idx]) - mean(dy[untreated_idx])
+        D_bar <- mean(d_merged[treated_idx])
+
+        for (b in B_values) {
+          att_o_all[[length(att_o_all) + 1]] <- data.frame(
+            period = pp,
+            horizon = horizon_t,
+            att_o_bin = att_o_bin,
+            D_bar = D_bar,
+            B = b,
+            att_o_lower = att_o_bin - mult * b * D_bar,
+            att_o_upper = att_o_bin + mult * b * D_bar
+          )
+        }
+      }
     }
+
+    datt <- do.call(rbind, datt_all)
+    att <- if (length(att_all) > 0) do.call(rbind, att_all) else NULL
+    att_o <- if (length(att_o_all) > 0) do.call(rbind, att_o_all) else NULL
+    rownames(datt) <- NULL
+    if (!is.null(att)) rownames(att) <- NULL
+    if (!is.null(att_o)) rownames(att_o) <- NULL
+
+  } else {
+
+    # --- contdid: delegate to backend ---
+    cd <- run_contdid(
+      data = data, id_col = id_col, time_col = time_col,
+      outcome_col = outcome_col, dose_col = dose_col,
+      post_periods = post_periods, pre_period_set = pre_period_set,
+      min_post = min_post, has_untreated = has_untreated,
+      dose_vec = dose_vec, B = B, contdid_args = contdid_args
+    )
+    slopes             <- cd$slopes
+    calibration_result <- cd$calibration
+    B_hat              <- cd$B_hat
+    B_values           <- cd$B_values
+    datt               <- cd$datt
+    att                <- cd$att
+    att_o              <- cd$att_o
+    contdid_fit        <- cd$contdid_fit
   }
 
-  datt <- do.call(rbind, datt_all)
-  att <- if (length(att_all) > 0) do.call(rbind, att_all) else NULL
-  att_o <- if (length(att_o_all) > 0) do.call(rbind, att_o_all) else NULL
-  rownames(datt) <- NULL
-  if (!is.null(att)) rownames(att) <- NULL
-  if (!is.null(att_o)) rownames(att_o) <- NULL
+  # ==================================================================
+  #  Common: ATT^o aggregation, pre-period event study, output
+  # ==================================================================
 
   # --- Time-aggregated ATT^0 (Eq. 31 generalized) ---
   att_o_agg <- NULL
@@ -340,13 +397,17 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
       B_values = B_values,
       calibration = calibration_result,
       slopes = slopes,
+      contdid_fit = contdid_fit,
       call = the_call,
       n = nrow(ref_data),
       has_untreated = has_untreated,
       post_periods = post_periods,
       ref_period = ref_period,
       specifications = list(
-        k = k, spline_bs = spline_bs,
+        method = method,
+        k = if (method == "gam") k else NULL,
+        spline_bs = if (method == "gam") spline_bs else NULL,
+        contdid_args = if (method == "contdid") contdid_args else NULL,
         post_periods = post_periods, ref_period = ref_period
       )
     ),
