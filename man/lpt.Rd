@@ -13,8 +13,9 @@ lpt(
   post_period,
   pre_periods = NULL,
   B = "calibrate",
-  method = c("gam", "contdid"),
+  method = c("gam", "contdid", "npiv"),
   contdid_args = list(),
+  npiv_args = list(),
   eval_points = NULL,
   k = 5,
   spline_bs = "cr"
@@ -46,25 +47,35 @@ parallel trends (point identification). If a numeric vector, bounds are
 computed for each value (sensitivity analysis). Default: \code{"calibrate"}.}
 
 \item{method}{Character. Estimation method: \code{"gam"} (default, penalized
-splines via \code{mgcv}) or \code{"contdid"} (B-splines via the
-\code{contdid} package; Callaway, Goodman-Bacon & Sant'Anna 2024).}
+splines via \code{mgcv}), \code{"contdid"} (B-splines via the
+\code{contdid} package; Callaway, Goodman-Bacon & Sant'Anna 2024), or
+\code{"npiv"} (B-spline sieve regression via the \code{npiv} package;
+Chen, Christensen & Kankanala 2024).}
 
 \item{contdid_args}{Named list. Additional arguments passed to
 \code{contdid::cont_did()} when \code{method = "contdid"}. Common options:
 \code{num_knots} (default 1), \code{degree} (default 3),
 \code{biters} (bootstrap iterations, default 500),
 \code{control_group} (default \code{"notyettreated"}).
-Ignored when \code{method = "gam"}.}
+Ignored when \code{method = "gam"} or \code{"npiv"}.}
+
+\item{npiv_args}{Named list. Additional arguments passed to
+\code{npiv::npiv()} when \code{method = "npiv"}. Common options:
+\code{J.x.segments} (default 2), \code{J.x.degree} (default 3),
+\code{knots} (default \code{"uniform"}).
+Ignored when \code{method != "npiv"}.}
 
 \item{eval_points}{Numeric vector or NULL. Dose grid for evaluation.
 Default: 50 points over 5th-95th percentile of dose. Ignored when
-\code{method = "contdid"} (determined by contdid internally).}
+\code{method = "contdid"} (determined by contdid internally).
+Used by both \code{"gam"} and \code{"npiv"} methods.}
 
 \item{k}{Integer. Spline basis dimension for GAM method. Default: 5.
-Ignored when \code{method = "contdid"}.}
+Ignored when \code{method = "contdid"} or \code{"npiv"}.}
 
 \item{spline_bs}{Character. Spline basis type (\code{"cr"} or \code{"tp"}).
-Default: \code{"cr"}. Ignored when \code{method = "contdid"}.}
+Default: \code{"cr"}. Ignored when \code{method = "contdid"} or
+\code{"npiv"}.}
 }
 \value{
 An S3 object of class \code{"lpt"} containing:
@@ -95,7 +106,9 @@ An S3 object of class \code{"lpt"} containing:
     \item{post_periods}{The post-period(s) estimated.}
     \item{ref_period}{The reference (last pre-) period used for differencing.}
     \item{contdid_fit}{Raw \code{pte_results} object from \code{contdid}
-      (NULL when \code{method = "gam"}).}
+      (NULL when \code{method != "contdid"}).}
+    \item{npiv_fits}{Named list of raw \code{npiv} objects per post-period
+      (NULL when \code{method != "npiv"}).}
     \item{specifications}{List of all estimation settings.}
   }
 }
@@ -135,4 +148,9 @@ Callaway B, Goodman-Bacon A, Sant'Anna PHC (2024).
 Wood SN (2017).
 \emph{Generalized Additive Models: An Introduction with R} (2nd ed.).
 Chapman and Hall/CRC.
+
+Chen X, Christensen T, Kankanala S (2024).
+\dQuote{Adaptive Estimation and Uniform Confidence Bands for Nonparametric
+Structural Functions and Elasticities.}
+\emph{Review of Economic Studies}, \strong{91}(6), 3337--3369.
 }

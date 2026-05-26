@@ -145,13 +145,21 @@ summary.lpt <- function(object, ...) {
       object$specifications$spline_bs,
       object$specifications$k
     ))
-  } else {
+  } else if (meth == "contdid") {
     cd_args <- object$specifications$contdid_args
     cat(sprintf(
       "\n  n = %d | Method: contdid | knots = %s, degree = %s\n",
       object$n,
       if (!is.null(cd_args$num_knots)) cd_args$num_knots else "1",
       if (!is.null(cd_args$degree)) cd_args$degree else "3"
+    ))
+  } else {
+    np_args <- object$specifications$npiv_args
+    j_seg <- if (!is.null(np_args$J.x.segments)) np_args$J.x.segments else "2"
+    j_deg <- if (!is.null(np_args$J.x.degree)) np_args$J.x.degree else "3"
+    cat(sprintf(
+      "\n  n = %d | Method: npiv | J.segments = %s, degree = %s\n",
+      object$n, j_seg, j_deg
     ))
   }
   rule()

@@ -21,21 +21,30 @@
 #'   parallel trends (point identification). If a numeric vector, bounds are
 #'   computed for each value (sensitivity analysis). Default: \code{"calibrate"}.
 #' @param method Character. Estimation method: \code{"gam"} (default, penalized
-#'   splines via \code{mgcv}) or \code{"contdid"} (B-splines via the
-#'   \code{contdid} package; Callaway, Goodman-Bacon & Sant'Anna 2024).
+#'   splines via \code{mgcv}), \code{"contdid"} (B-splines via the
+#'   \code{contdid} package; Callaway, Goodman-Bacon & Sant'Anna 2024), or
+#'   \code{"npiv"} (B-spline sieve regression via the \code{npiv} package;
+#'   Chen, Christensen & Kankanala 2024).
 #' @param contdid_args Named list. Additional arguments passed to
 #'   \code{contdid::cont_did()} when \code{method = "contdid"}. Common options:
 #'   \code{num_knots} (default 1), \code{degree} (default 3),
 #'   \code{biters} (bootstrap iterations, default 500),
 #'   \code{control_group} (default \code{"notyettreated"}).
-#'   Ignored when \code{method = "gam"}.
+#'   Ignored when \code{method = "gam"} or \code{"npiv"}.
+#' @param npiv_args Named list. Additional arguments passed to
+#'   \code{npiv::npiv()} when \code{method = "npiv"}. Common options:
+#'   \code{J.x.segments} (default 2), \code{J.x.degree} (default 3),
+#'   \code{knots} (default \code{"uniform"}).
+#'   Ignored when \code{method != "npiv"}.
 #' @param eval_points Numeric vector or NULL. Dose grid for evaluation.
 #'   Default: 50 points over 5th-95th percentile of dose. Ignored when
 #'   \code{method = "contdid"} (determined by contdid internally).
+#'   Used by both \code{"gam"} and \code{"npiv"} methods.
 #' @param k Integer. Spline basis dimension for GAM method. Default: 5.
-#'   Ignored when \code{method = "contdid"}.
+#'   Ignored when \code{method = "contdid"} or \code{"npiv"}.
 #' @param spline_bs Character. Spline basis type (\code{"cr"} or \code{"tp"}).
-#'   Default: \code{"cr"}. Ignored when \code{method = "contdid"}.
+#'   Default: \code{"cr"}. Ignored when \code{method = "contdid"} or
+#'   \code{"npiv"}.
 #' @return An S3 object of class \code{"lpt"} containing:
 #'   \describe{
 #'     \item{datt}{Data frame with columns \code{period}, \code{horizon},
@@ -64,7 +73,9 @@
 #'     \item{post_periods}{The post-period(s) estimated.}
 #'     \item{ref_period}{The reference (last pre-) period used for differencing.}
 #'     \item{contdid_fit}{Raw \code{pte_results} object from \code{contdid}
-#'       (NULL when \code{method = "gam"}).}
+#'       (NULL when \code{method != "contdid"}).}
+#'     \item{npiv_fits}{Named list of raw \code{npiv} objects per post-period
+#'       (NULL when \code{method != "npiv"}).}
 #'     \item{specifications}{List of all estimation settings.}
 #'   }
 #'
@@ -76,6 +87,11 @@
 #' Wood SN (2017).
 #' \emph{Generalized Additive Models: An Introduction with R} (2nd ed.).
 #' Chapman and Hall/CRC.
+#'
+#' Chen X, Christensen T, Kankanala S (2024).
+#' \dQuote{Adaptive Estimation and Uniform Confidence Bands for Nonparametric
+#' Structural Functions and Elasticities.}
+#' \emph{Review of Economic Studies}, \strong{91}(6), 3337--3369.
 #'
 #' @details
 #' The key decomposition is:
@@ -102,8 +118,9 @@
 #' @export
 lpt <- function(data, id_col, time_col, outcome_col, dose_col,
                 post_period, pre_periods = NULL,
-                B = "calibrate", method = c("gam", "contdid"),
-                contdid_args = list(), eval_points = NULL,
+                B = "calibrate", method = c("gam", "contdid", "npiv"),
+                contdid_args = list(), npiv_args = list(),
+                eval_points = NULL,
                 k = 5, spline_bs = "cr") {
 
   method <- match.arg(method)
@@ -152,6 +169,7 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
   has_untreated <- any(dose_vec == 0)
 
   contdid_fit <- NULL
+  npiv_fits <- NULL
 
   # ==================================================================
   #  Estimation: branch on method
@@ -298,7 +316,7 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
     if (!is.null(att)) rownames(att) <- NULL
     if (!is.null(att_o)) rownames(att_o) <- NULL
 
-  } else {
+  } else if (method == "contdid") {
 
     # --- contdid: delegate to backend ---
     cd <- run_contdid(
@@ -316,6 +334,27 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
     att                <- cd$att
     att_o              <- cd$att_o
     contdid_fit        <- cd$contdid_fit
+
+  } else {
+
+    # --- npiv: delegate to backend ---
+    np <- run_npiv(
+      data = data, id_col = id_col, time_col = time_col,
+      outcome_col = outcome_col, dose_col = dose_col,
+      post_periods = post_periods, pre_period_set = pre_period_set,
+      min_post = min_post, ref_period = ref_period,
+      has_untreated = has_untreated,
+      dose_vec = dose_vec, B = B,
+      eval_points = eval_points, npiv_args = npiv_args
+    )
+    slopes             <- np$slopes
+    calibration_result <- np$calibration
+    B_hat              <- np$B_hat
+    B_values           <- np$B_values
+    datt               <- np$datt
+    att                <- np$att
+    att_o              <- np$att_o
+    npiv_fits          <- np$npiv_fits
   }
 
   # ==================================================================
@@ -398,6 +437,7 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
       calibration = calibration_result,
       slopes = slopes,
       contdid_fit = contdid_fit,
+      npiv_fits = npiv_fits,
       call = the_call,
       n = nrow(ref_data),
       has_untreated = has_untreated,
@@ -408,6 +448,7 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
         k = if (method == "gam") k else NULL,
         spline_bs = if (method == "gam") spline_bs else NULL,
         contdid_args = if (method == "contdid") contdid_args else NULL,
+        npiv_args = if (method == "npiv") npiv_args else NULL,
         post_periods = post_periods, ref_period = ref_period
       )
     ),
