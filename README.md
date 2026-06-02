@@ -123,11 +123,31 @@ Uses the same pairwise first-difference approach as GAM but with B-spline
 sieves and data-driven tuning parameter selection. Default `J.x.segments = 2`
 (5-dimensional basis) matches the GAM default of `k = 5`.
 
+### Alternative backend: kernel
+
+The `method = "kernel"` option uses local polynomial kernel regression from
+[Hayfield & Racine (2008)](https://doi.org/10.18637/jss.v027.i05):
+
+```r
+fit_kr <- lpt(sru, "commune", "year", "outcome", "dose",
+              post_period = 0:5, pre_periods = -7:-1,
+              B = "calibrate", method = "kernel",
+              kernel_args = list(bw = "cv.ls", regtype = "ll"))
+summary(fit_kr)
+plot(fit_kr, type = "datt")
+```
+
+Local linear regression (`regtype = "ll"`, the default) automatically corrects
+for boundary bias (Fan & Gijbels, 1996). Bandwidth can be selected via
+least-squares cross-validation (`bw = "cv.ls"`, default) or set manually
+(`bw = 0.1`). Kernel choices: `"gaussian"` (default), `"epanechnikov"`,
+`"uniform"`.
+
 ## Key Functions
 
 | Function | Description |
 |----------|-------------|
-| `lpt()` | Main estimation (`method = "gam"`, `"contdid"`, or `"npiv"`) |
+| `lpt()` | Main estimation (`method = "gam"`, `"contdid"`, `"npiv"`, or `"kernel"`) |
 | `calibrate_B()` | Calibrate B from pre-treatment periods |
 | `plot.lpt()` | Visualize identified sets and sensitivity |
 | `summary.lpt()` | Tabular summary at dose quartiles |
@@ -155,13 +175,15 @@ these slopes with $\pm\hat{B}$ bands.
 ## Dependencies
 
 - **Required:** `mgcv`, `stats`
-- **Suggested:** `contdid` (alternative backend), `npiv` (alternative backend), `ggplot2` (plotting), `testthat`, `knitr`, `rmarkdown`
+- **Suggested:** `contdid` (alternative backend), `np` (kernel backend), `npiv` (sieve backend), `ggplot2` (plotting), `testthat`, `knitr`, `rmarkdown`
 
 ## References
 
 - Dealberti F (2026). *Local Parallel Trends for Continuous DiD*.
 - Callaway B, Goodman-Bacon A, Sant'Anna PHC (2024). *Difference-in-differences with a continuous treatment*. NBER Working Paper.
 - Chen X, Christensen T, Kankanala S (2024). *Adaptive Estimation and Uniform Confidence Bands for Nonparametric Structural Functions and Elasticities*. Review of Economic Studies, 91(6), 3337–3369.
+- Hayfield T, Racine JS (2008). *Nonparametric Econometrics: The np Package*. Journal of Statistical Software, 27(5).
+- Fan J, Gijbels I (1996). *Local Polynomial Modelling and Its Applications*. Chapman and Hall/CRC.
 - Wood SN (2017). *Generalized Additive Models: An Introduction with R* (2nd ed.). Chapman and Hall/CRC.
 
 ## AI Use Acknowledgment

@@ -22,9 +22,10 @@
 #'   computed for each value (sensitivity analysis). Default: \code{"calibrate"}.
 #' @param method Character. Estimation method: \code{"gam"} (default, penalized
 #'   splines via \code{mgcv}), \code{"contdid"} (B-splines via the
-#'   \code{contdid} package; Callaway, Goodman-Bacon & Sant'Anna 2024), or
+#'   \code{contdid} package; Callaway, Goodman-Bacon & Sant'Anna 2024),
 #'   \code{"npiv"} (B-spline sieve regression via the \code{npiv} package;
-#'   Chen, Christensen & Kankanala 2024).
+#'   Chen, Christensen & Kankanala 2024), or \code{"kernel"} (local polynomial
+#'   kernel regression via the \code{np} package; Hayfield & Racine 2008).
 #' @param contdid_args Named list. Additional arguments passed to
 #'   \code{contdid::cont_did()} when \code{method = "contdid"}. Common options:
 #'   \code{num_knots} (default 1), \code{degree} (default 3),
@@ -36,15 +37,21 @@
 #'   \code{J.x.segments} (default 2), \code{J.x.degree} (default 3),
 #'   \code{knots} (default \code{"uniform"}).
 #'   Ignored when \code{method != "npiv"}.
+#' @param kernel_args Named list. Additional arguments when
+#'   \code{method = "kernel"}. \code{bw}: bandwidth — \code{"cv.ls"}
+#'   (default, least-squares CV), \code{"cv.aic"}, or a positive numeric
+#'   scalar. \code{regtype}: \code{"ll"} (local linear, default) or
+#'   \code{"lc"} (local constant). \code{ckertype}: \code{"gaussian"}
+#'   (default), \code{"epanechnikov"}, or \code{"uniform"}.
+#'   Ignored when \code{method != "kernel"}.
 #' @param eval_points Numeric vector or NULL. Dose grid for evaluation.
 #'   Default: 50 points over 5th-95th percentile of dose. Ignored when
 #'   \code{method = "contdid"} (determined by contdid internally).
-#'   Used by both \code{"gam"} and \code{"npiv"} methods.
+#'   Used by \code{"gam"}, \code{"npiv"}, and \code{"kernel"} methods.
 #' @param k Integer. Spline basis dimension for GAM method. Default: 5.
-#'   Ignored when \code{method = "contdid"} or \code{"npiv"}.
+#'   Ignored when \code{method != "gam"}.
 #' @param spline_bs Character. Spline basis type (\code{"cr"} or \code{"tp"}).
-#'   Default: \code{"cr"}. Ignored when \code{method = "contdid"} or
-#'   \code{"npiv"}.
+#'   Default: \code{"cr"}. Ignored when \code{method != "gam"}.
 #' @return An S3 object of class \code{"lpt"} containing:
 #'   \describe{
 #'     \item{datt}{Data frame with columns \code{period}, \code{horizon},
@@ -76,6 +83,9 @@
 #'       (NULL when \code{method != "contdid"}).}
 #'     \item{npiv_fits}{Named list of raw \code{npiv} objects per post-period
 #'       (NULL when \code{method != "npiv"}).}
+#'     \item{kernel_fits}{Named list of kernel fit objects per post-period,
+#'       each with \code{fit} and \code{bw} elements
+#'       (NULL when \code{method != "kernel"}).}
 #'     \item{specifications}{List of all estimation settings.}
 #'   }
 #'
@@ -92,6 +102,10 @@
 #' \dQuote{Adaptive Estimation and Uniform Confidence Bands for Nonparametric
 #' Structural Functions and Elasticities.}
 #' \emph{Review of Economic Studies}, \strong{91}(6), 3337--3369.
+#'
+#' Hayfield T, Racine JS (2008).
+#' \dQuote{Nonparametric Econometrics: The np Package.}
+#' \emph{Journal of Statistical Software}, \strong{27}(5).
 #'
 #' @details
 #' The key decomposition is:
@@ -118,8 +132,10 @@
 #' @export
 lpt <- function(data, id_col, time_col, outcome_col, dose_col,
                 post_period, pre_periods = NULL,
-                B = "calibrate", method = c("gam", "contdid", "npiv"),
+                B = "calibrate",
+                method = c("gam", "contdid", "npiv", "kernel"),
                 contdid_args = list(), npiv_args = list(),
+                kernel_args = list(),
                 eval_points = NULL,
                 k = 5, spline_bs = "cr") {
 
@@ -170,6 +186,7 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
 
   contdid_fit <- NULL
   npiv_fits <- NULL
+  kernel_fits <- NULL
 
   # ==================================================================
   #  Estimation: branch on method
@@ -335,7 +352,7 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
     att_o              <- cd$att_o
     contdid_fit        <- cd$contdid_fit
 
-  } else {
+  } else if (method == "npiv") {
 
     # --- npiv: delegate to backend ---
     np <- run_npiv(
@@ -355,6 +372,27 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
     att                <- np$att
     att_o              <- np$att_o
     npiv_fits          <- np$npiv_fits
+
+  } else {
+
+    # --- kernel: delegate to backend ---
+    kr <- run_kernel(
+      data = data, id_col = id_col, time_col = time_col,
+      outcome_col = outcome_col, dose_col = dose_col,
+      post_periods = post_periods, pre_period_set = pre_period_set,
+      min_post = min_post, ref_period = ref_period,
+      has_untreated = has_untreated,
+      dose_vec = dose_vec, B = B,
+      eval_points = eval_points, kernel_args = kernel_args
+    )
+    slopes             <- kr$slopes
+    calibration_result <- kr$calibration
+    B_hat              <- kr$B_hat
+    B_values           <- kr$B_values
+    datt               <- kr$datt
+    att                <- kr$att
+    att_o              <- kr$att_o
+    kernel_fits        <- kr$kernel_fits
   }
 
   # ==================================================================
@@ -438,6 +476,7 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
       slopes = slopes,
       contdid_fit = contdid_fit,
       npiv_fits = npiv_fits,
+      kernel_fits = kernel_fits,
       call = the_call,
       n = nrow(ref_data),
       has_untreated = has_untreated,
@@ -449,6 +488,7 @@ lpt <- function(data, id_col, time_col, outcome_col, dose_col,
         spline_bs = if (method == "gam") spline_bs else NULL,
         contdid_args = if (method == "contdid") contdid_args else NULL,
         npiv_args = if (method == "npiv") npiv_args else NULL,
+        kernel_args = if (method == "kernel") kernel_args else NULL,
         post_periods = post_periods, ref_period = ref_period
       )
     ),

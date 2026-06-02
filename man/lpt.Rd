@@ -13,9 +13,10 @@ lpt(
   post_period,
   pre_periods = NULL,
   B = "calibrate",
-  method = c("gam", "contdid", "npiv"),
+  method = c("gam", "contdid", "npiv", "kernel"),
   contdid_args = list(),
   npiv_args = list(),
+  kernel_args = list(),
   eval_points = NULL,
   k = 5,
   spline_bs = "cr"
@@ -48,9 +49,10 @@ computed for each value (sensitivity analysis). Default: \code{"calibrate"}.}
 
 \item{method}{Character. Estimation method: \code{"gam"} (default, penalized
 splines via \code{mgcv}), \code{"contdid"} (B-splines via the
-\code{contdid} package; Callaway, Goodman-Bacon & Sant'Anna 2024), or
+\code{contdid} package; Callaway, Goodman-Bacon & Sant'Anna 2024),
 \code{"npiv"} (B-spline sieve regression via the \code{npiv} package;
-Chen, Christensen & Kankanala 2024).}
+Chen, Christensen & Kankanala 2024), or \code{"kernel"} (local polynomial
+kernel regression via the \code{np} package; Hayfield & Racine 2008).}
 
 \item{contdid_args}{Named list. Additional arguments passed to
 \code{contdid::cont_did()} when \code{method = "contdid"}. Common options:
@@ -65,17 +67,24 @@ Ignored when \code{method = "gam"} or \code{"npiv"}.}
 \code{knots} (default \code{"uniform"}).
 Ignored when \code{method != "npiv"}.}
 
+\item{kernel_args}{Named list. Additional arguments when
+\code{method = "kernel"}. \code{bw}: bandwidth — \code{"cv.ls"}
+(default, least-squares CV), \code{"cv.aic"}, or a positive numeric
+scalar. \code{regtype}: \code{"ll"} (local linear, default) or
+\code{"lc"} (local constant). \code{ckertype}: \code{"gaussian"}
+(default), \code{"epanechnikov"}, or \code{"uniform"}.
+Ignored when \code{method != "kernel"}.}
+
 \item{eval_points}{Numeric vector or NULL. Dose grid for evaluation.
 Default: 50 points over 5th-95th percentile of dose. Ignored when
 \code{method = "contdid"} (determined by contdid internally).
-Used by both \code{"gam"} and \code{"npiv"} methods.}
+Used by \code{"gam"}, \code{"npiv"}, and \code{"kernel"} methods.}
 
 \item{k}{Integer. Spline basis dimension for GAM method. Default: 5.
-Ignored when \code{method = "contdid"} or \code{"npiv"}.}
+Ignored when \code{method != "gam"}.}
 
 \item{spline_bs}{Character. Spline basis type (\code{"cr"} or \code{"tp"}).
-Default: \code{"cr"}. Ignored when \code{method = "contdid"} or
-\code{"npiv"}.}
+Default: \code{"cr"}. Ignored when \code{method != "gam"}.}
 }
 \value{
 An S3 object of class \code{"lpt"} containing:
@@ -109,6 +118,9 @@ An S3 object of class \code{"lpt"} containing:
       (NULL when \code{method != "contdid"}).}
     \item{npiv_fits}{Named list of raw \code{npiv} objects per post-period
       (NULL when \code{method != "npiv"}).}
+    \item{kernel_fits}{Named list of kernel fit objects per post-period,
+      each with \code{fit} and \code{bw} elements
+      (NULL when \code{method != "kernel"}).}
     \item{specifications}{List of all estimation settings.}
   }
 }
@@ -153,4 +165,8 @@ Chen X, Christensen T, Kankanala S (2024).
 \dQuote{Adaptive Estimation and Uniform Confidence Bands for Nonparametric
 Structural Functions and Elasticities.}
 \emph{Review of Economic Studies}, \strong{91}(6), 3337--3369.
+
+Hayfield T, Racine JS (2008).
+\dQuote{Nonparametric Econometrics: The np Package.}
+\emph{Journal of Statistical Software}, \strong{27}(5).
 }

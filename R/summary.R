@@ -153,13 +153,33 @@ summary.lpt <- function(object, ...) {
       if (!is.null(cd_args$num_knots)) cd_args$num_knots else "1",
       if (!is.null(cd_args$degree)) cd_args$degree else "3"
     ))
-  } else {
+  } else if (meth == "npiv") {
     np_args <- object$specifications$npiv_args
     j_seg <- if (!is.null(np_args$J.x.segments)) np_args$J.x.segments else "2"
     j_deg <- if (!is.null(np_args$J.x.degree)) np_args$J.x.degree else "3"
     cat(sprintf(
       "\n  n = %d | Method: npiv | J.segments = %s, degree = %s\n",
       object$n, j_seg, j_deg
+    ))
+  } else {
+    kr_args <- object$specifications$kernel_args
+    bw_str <- if (!is.null(kr_args$bw) && is.numeric(kr_args$bw)) {
+      sprintf("%.4f", kr_args$bw)
+    } else {
+      if (!is.null(kr_args$bw)) kr_args$bw else "cv.ls"
+    }
+    reg <- if (!is.null(kr_args$regtype)) kr_args$regtype else "ll"
+    ker <- if (!is.null(kr_args$ckertype)) kr_args$ckertype else "gaussian"
+    # Show actual selected bandwidths if available
+    bw_actual <- NULL
+    if (!is.null(object$kernel_fits)) {
+      bws <- sapply(object$kernel_fits, function(x) x$bw)
+      bw_actual <- sprintf("%.4f", mean(bws))
+    }
+    bw_display <- if (!is.null(bw_actual)) bw_actual else bw_str
+    cat(sprintf(
+      "\n  n = %d | Method: kernel (%s) | bw = %s, kernel = %s\n",
+      object$n, reg, bw_display, ker
     ))
   }
   rule()
