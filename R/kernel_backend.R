@@ -22,11 +22,19 @@
 #' @param kernel_args List of additional arguments. Recognized entries:
 #'   \describe{
 #'     \item{bw}{Bandwidth: \code{"cv.ls"} (default, least-squares CV),
-#'       \code{"cv.aic"} (AIC-based CV), or a positive numeric scalar.}
+#'       \code{"cv.aic"} (AIC-based CV), or a positive numeric scalar.
+#'       When using CV, the selected bandwidth is inflated for derivative
+#'       estimation (see \code{bw_inflate}).}
 #'     \item{regtype}{\code{"ll"} (local linear, default) or
 #'       \code{"lc"} (local constant / Nadaraya-Watson).}
 #'     \item{ckertype}{Kernel function: \code{"gaussian"} (default),
 #'       \code{"epanechnikov"}, or \code{"uniform"}.}
+#'     \item{bw_inflate}{Logical. If \code{TRUE} (default), inflate
+#'       CV-selected bandwidths by \eqn{n^{2/35}} for derivative estimation
+#'       (Fan & Gijbels, 1996, Theorem 3.1). CV optimizes for level
+#'       estimation; derivatives need a larger bandwidth. Ignored when
+#'       \code{bw} is numeric. Set to \code{FALSE} to use the raw CV
+#'       bandwidth.}
 #'   }
 #'
 #' @return A list with components: \code{datt}, \code{att}, \code{att_o},
@@ -64,6 +72,12 @@ run_kernel <- function(data, id_col, time_col, outcome_col, dose_col,
   bw_spec  <- if (!is.null(kernel_args[["bw"]]))       kernel_args[["bw"]]       else "cv.ls"
   regtype  <- if (!is.null(kernel_args[["regtype"]]))   kernel_args[["regtype"]]   else "ll"
   ckertype <- if (!is.null(kernel_args[["ckertype"]])) kernel_args[["ckertype"]]  else "gaussian"
+  # Derivative bandwidth inflation: CV optimizes for h(d), not h'(d).
+  # The optimal bandwidth for first-derivative estimation is larger by a
+
+  # factor of n^{2/35} (Fan & Gijbels 1996, Theorem 3.1). Since lpt always
+  # needs derivatives (lambda_d, calibration slopes), we inflate by default.
+  bw_inflate <- if (!is.null(kernel_args[["bw_inflate"]])) kernel_args[["bw_inflate"]] else TRUE
 
   if (!regtype %in% c("ll", "lc")) {
     stop("kernel_args$regtype must be 'll' (local linear) or 'lc' (local constant).")
@@ -75,12 +89,8 @@ run_kernel <- function(data, id_col, time_col, outcome_col, dose_col,
   # --- Helper: fit kernel regression on one (delta_y, dose) pair ---
   fit_one_kernel <- function(delta_y, dose, ep) {
     if (is.numeric(bw_spec)) {
-      # Manual bandwidth — skip CV
-      bw_obj <- np::npregbw(
-        ydat = delta_y, xdat = dose,
-        regtype = regtype, ckertype = ckertype,
-        bws = bw_spec, bandwidth.compute = FALSE
-      )
+      # Manual bandwidth — skip CV, no inflation
+      bw_use <- bw_spec
     } else {
       # Data-driven bandwidth selection
       bw_method <- match.arg(bw_spec, c("cv.ls", "cv.aic"))
@@ -89,12 +99,24 @@ run_kernel <- function(data, id_col, time_col, outcome_col, dose_col,
         regtype = regtype, ckertype = ckertype,
         bwmethod = bw_method
       )
+      bw_use <- bw_obj$bw
+      # Inflate for derivative estimation (Fan & Gijbels 1996)
+      if (isTRUE(bw_inflate)) {
+        n <- length(delta_y)
+        bw_use <- bw_use * n^(2/35)
+      }
     }
-    fit <- np::npreg(bw_obj, exdat = ep, gradients = TRUE)
+    # Fit with final bandwidth
+    bw_final <- np::npregbw(
+      ydat = delta_y, xdat = dose,
+      regtype = regtype, ckertype = ckertype,
+      bws = bw_use, bandwidth.compute = FALSE
+    )
+    fit <- np::npreg(bw_final, exdat = ep, gradients = TRUE)
     list(
       h     = as.numeric(stats::fitted(fit)),
       deriv = as.numeric(np::gradients(fit)),
-      bw    = bw_obj$bw,
+      bw    = bw_use,
       fit   = fit
     )
   }

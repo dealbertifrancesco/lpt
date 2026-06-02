@@ -45,11 +45,19 @@ run_kernel(
 \item{kernel_args}{List of additional arguments. Recognized entries:
 \describe{
   \item{bw}{Bandwidth: \code{"cv.ls"} (default, least-squares CV),
-    \code{"cv.aic"} (AIC-based CV), or a positive numeric scalar.}
+    \code{"cv.aic"} (AIC-based CV), or a positive numeric scalar.
+    When using CV, the selected bandwidth is inflated for derivative
+    estimation (see \code{bw_inflate}).}
   \item{regtype}{\code{"ll"} (local linear, default) or
     \code{"lc"} (local constant / Nadaraya-Watson).}
   \item{ckertype}{Kernel function: \code{"gaussian"} (default),
     \code{"epanechnikov"}, or \code{"uniform"}.}
+  \item{bw_inflate}{Logical. If \code{TRUE} (default), inflate
+    CV-selected bandwidths by \eqn{n^{2/35}} for derivative estimation
+    (Fan & Gijbels, 1996, Theorem 3.1). CV optimizes for level
+    estimation; derivatives need a larger bandwidth. Ignored when
+    \code{bw} is numeric. Set to \code{FALSE} to use the raw CV
+    bandwidth.}
 }}
 }
 \value{

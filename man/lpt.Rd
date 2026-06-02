@@ -73,6 +73,8 @@ Ignored when \code{method != "npiv"}.}
 scalar. \code{regtype}: \code{"ll"} (local linear, default) or
 \code{"lc"} (local constant). \code{ckertype}: \code{"gaussian"}
 (default), \code{"epanechnikov"}, or \code{"uniform"}.
+\code{bw_inflate}: logical (default \code{TRUE}), inflate CV bandwidth
+by \eqn{n^{2/35}} for derivative estimation (Fan & Gijbels, 1996).
 Ignored when \code{method != "kernel"}.}
 
 \item{eval_points}{Numeric vector or NULL. Dose grid for evaluation.
