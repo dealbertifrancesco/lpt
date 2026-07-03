@@ -1,13 +1,18 @@
 Package: lpt
 Type: Package
 Title: Local Parallel Trends for Continuous Difference-in-Differences
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: person("Francesco", "Dealberti", email = "dealberti.francesco@gmail.com", role = c("aut", "cre"))
-Description: Implements partial identification under Local Parallel Trends (LPT)
-    for continuous difference-in-differences designs. Bounds the selection slope
-    mu'(d) by a sensitivity parameter B (a Lipschitz bound), yielding identified
-    sets for the dose-response derivative and ATT level effects. Estimation uses
-    penalized regression splines via mgcv. See Dealberti (2026) for details.
+Description: Implements partial identification for continuous
+    difference-in-differences designs under local restrictions on
+    counterfactual trends. A level bound M on trend deviations
+    (|mu_t(d) - mu_t(0)| <= M) yields identified sets for ATT levels and
+    the overall ATT; a separate slope bound B on selection slopes
+    (|mu_t'(d)| <= B) yields identified sets for dose-response
+    derivatives. Identified sets widen linearly in the post-treatment
+    horizon, and both bounds can be calibrated from pre-treatment
+    periods. Estimation uses penalized regression splines via mgcv, with
+    contdid, npiv, and kernel backends. See Dealberti (2026) for details.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true

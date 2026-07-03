@@ -8,7 +8,6 @@
 #' @method print lpt
 #' @export
 print.lpt <- function(x, ...) {
-  b_source <- if (!is.null(x$calibration)) "calibrated" else "user-supplied"
   n_post <- length(x$post_periods)
   post_str <- if (n_post == 1) {
     as.character(x$post_periods)
@@ -16,9 +15,14 @@ print.lpt <- function(x, ...) {
     sprintf("%d periods (%s)", n_post,
             paste(x$post_periods, collapse = ", "))
   }
+  m_str <- if (is.finite(x$M_hat)) {
+    sprintf("%.4f (%s)", x$M_hat, x$M_source)
+  } else {
+    "NA (no untreated units)"
+  }
   cat(sprintf(
-    "Local Parallel Trends (lpt) | n = %d | B = %.4f (%s) | Post: %s\n",
-    x$n, x$B_hat, b_source, post_str
+    "Local Parallel Trends (lpt) | n = %d | M = %s | B = %.4f (%s) | Post: %s\n",
+    x$n, m_str, x$B_hat, x$B_source, post_str
   ))
   invisible(x)
 }
@@ -42,47 +46,59 @@ summary.lpt <- function(object, ...) {
   cat("  Local Parallel Trends Summary\n")
   rule()
 
-  # --- B information ---
-  if (!is.null(object$calibration)) {
-    cat(sprintf("\n  Sensitivity parameter B: %.4f (calibrated)\n",
-                object$B_hat))
-    cat("  Pre-period sup|mu'(d)| by pair:\n")
-    for (nm in names(object$calibration$sup_by_period)) {
-      cat(sprintf("    %s: %.4f\n", nm,
-                  object$calibration$sup_by_period[nm]))
-    }
+  # --- Sensitivity parameters ---
+  cat("\n  Sensitivity parameters:\n")
+  if (is.finite(object$M_hat)) {
+    cat(sprintf("    M (level bound, |mu_t(d) - mu_t(0)| <= M): %.4f (%s)\n",
+                object$M_hat, object$M_source))
   } else {
-    cat(sprintf("\n  Sensitivity parameter B: %.4f (user-supplied)\n",
-                object$B_hat))
+    cat("    M (level bound): NA (no untreated units)\n")
   }
-  cat("  B = 0 is standard parallel trends (point identification).\n")
+  cat(sprintf("    B (slope bound, |mu_t'(d)| <= B):          %.4f (%s)\n",
+              object$B_hat, object$B_source))
+  cat("  M = 0 (resp. B = 0) is standard parallel trends for levels\n")
+  cat("  (resp. slopes): point identification.\n")
+
+  # --- Calibration details ---
+  if (!is.null(object$calibration)) {
+    cal <- object$calibration
+    if (!is.null(cal$sup_dev_by_period)) {
+      cat("\n  Pre-period sup|mu_s(d) - mu_s(0)| by pair (calibrates M):\n")
+      for (nm in names(cal$sup_dev_by_period)) {
+        cat(sprintf("    %s: %.4f\n", nm, cal$sup_dev_by_period[nm]))
+      }
+    }
+    cat("\n  Pre-period sup|mu_s'(d)| by pair (calibrates B):\n")
+    for (nm in names(cal$sup_slope_by_period)) {
+      cat(sprintf("    %s: %.4f\n", nm, cal$sup_slope_by_period[nm]))
+    }
+  }
 
   # --- ATT^o summary per period ---
-  if (!is.null(object$att_o)) {
+  if (!is.null(object$att_o) && is.finite(object$M_hat)) {
     for (pp in object$post_periods) {
       atto_pp <- object$att_o[object$att_o$period == pp &
-                                object$att_o$B == object$B_hat, ]
+                                object$att_o$M == object$M_hat, ]
       if (nrow(atto_pp) == 0) next
       h <- atto_pp$horizon[1]
 
-      cat(sprintf("\n  --- ATT^o (period %s, horizon %d, mult = %d) ---\n",
+      cat(sprintf("\n  --- ATT^o (period %s, horizon %d, drift mult = %d) ---\n",
                   pp, h, h + 1L))
-      cat(sprintf("  ATT^o_bin (binary DiD): %.4f\n", atto_pp$att_o_bin))
-      cat(sprintf("  Mean dose (treated):    %.4f\n", atto_pp$D_bar))
-      cat(sprintf("  IS(B = %.4f):           [%.4f, %.4f]\n",
-                  object$B_hat, atto_pp$att_o_lower, atto_pp$att_o_upper))
+      cat(sprintf("  ATT^o_t (binary DiD):   %.4f\n", atto_pp$att_o_bin))
+      cat(sprintf("  IS(M = %.4f):           [%.4f, %.4f]\n",
+                  object$M_hat, atto_pp$att_o_lower, atto_pp$att_o_upper))
     }
   }
 
-  # --- ATT^0 aggregated ---
-  if (!is.null(object$att_o_agg)) {
-    agg <- object$att_o_agg[object$att_o_agg$B == object$B_hat, ]
+  # --- ATT^o aggregated ---
+  if (!is.null(object$att_o_agg) && is.finite(object$M_hat)) {
+    agg <- object$att_o_agg[object$att_o_agg$M == object$M_hat, ]
     if (nrow(agg) > 0) {
-      cat(sprintf("\n  --- ATT^0 time-aggregated (%d periods) ---\n",
+      cat(sprintf("\n  --- ATT^o time-aggregated (%d periods) ---\n",
                   agg$n_periods[1]))
-      cat(sprintf("  Lambda^agg:   %.4f\n", agg$Lambda_agg))
-      cat(sprintf("  IS(B = %.4f): [%.4f, %.4f]\n",
-                  object$B_hat, agg$att_o_agg_lower, agg$att_o_agg_upper))
+      cat(sprintf("  Lambda-bar^agg: %.4f\n", agg$Lambda_agg))
+      cat(sprintf("  IS(M = %.4f):   [%.4f, %.4f]\n",
+                  object$M_hat, agg$att_o_agg_lower, agg$att_o_agg_upper))
     }
   }
 
@@ -93,7 +109,7 @@ summary.lpt <- function(object, ...) {
     if (nrow(datt_pp) == 0) next
     h <- datt_pp$horizon[1]
 
-    cat(sprintf("\n  --- dATT identified sets (period %s, horizon %d) ---\n",
+    cat(sprintf("\n  --- dATT identified sets (period %s, horizon %d; B) ---\n",
                 pp, h))
     dose_vals <- datt_pp$d
     qtiles <- stats::quantile(dose_vals, probs = c(0.25, 0.5, 0.75))
@@ -111,14 +127,14 @@ summary.lpt <- function(object, ...) {
   }
 
   # --- ATT identified sets at dose quartiles ---
-  if (!is.null(object$att)) {
+  if (!is.null(object$att) && is.finite(object$M_hat)) {
     for (pp in object$post_periods) {
       att_pp <- object$att[object$att$period == pp &
-                             object$att$B == object$B_hat, ]
+                             object$att$M == object$M_hat, ]
       if (nrow(att_pp) == 0) next
       h <- att_pp$horizon[1]
 
-      cat(sprintf("\n  --- ATT identified sets (period %s, horizon %d) ---\n",
+      cat(sprintf("\n  --- ATT identified sets (period %s, horizon %d; M) ---\n",
                   pp, h))
       dose_vals <- att_pp$d
       qtiles <- stats::quantile(dose_vals, probs = c(0.25, 0.5, 0.75))

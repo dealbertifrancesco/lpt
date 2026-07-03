@@ -16,6 +16,7 @@ run_kernel(
   ref_period,
   has_untreated,
   dose_vec,
+  M,
   B,
   eval_points,
   kernel_args
@@ -38,7 +39,9 @@ run_kernel(
 
 \item{dose_vec}{Numeric vector of doses from the reference period.}
 
-\item{B}{Sensitivity parameter specification ("calibrate" or numeric).}
+\item{M}{Level bound specification ("calibrate" or numeric).}
+
+\item{B}{Slope bound specification ("calibrate" or numeric).}
 
 \item{eval_points}{Numeric vector or NULL. Dose grid for evaluation.}
 
@@ -62,13 +65,14 @@ run_kernel(
 }
 \value{
 A list with components: \code{datt}, \code{att}, \code{att_o},
-  \code{slopes}, \code{calibration}, \code{B_hat}, \code{B_values},
-  \code{kernel_fits}.
+  \code{slopes}, \code{calibration}, \code{bounds}, \code{kernel_fits}.
 }
 \description{
 Internal function that fits local polynomial kernel regressions
-on pairwise first differences per period, following the same approach
-as the GAM backend but using \code{np::npreg()} as the estimator.
+on long differences per period, following the same approach as the GAM
+backend but using \code{np::npreg()} as the estimator. Fits are on
+treated units only; the untreated reference \eqn{\hat{f}_t(0)} is the
+sample mean of the long difference among untreated units.
 }
 \details{
 Local linear regression (\code{regtype = "ll"}) is the default and

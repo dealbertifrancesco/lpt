@@ -15,6 +15,7 @@ run_contdid(
   min_post,
   has_untreated,
   dose_vec,
+  M,
   B,
   contdid_args
 )
@@ -34,18 +35,26 @@ run_contdid(
 
 \item{dose_vec}{Numeric vector of doses from the reference period.}
 
-\item{B}{Sensitivity parameter specification ("calibrate" or numeric).}
+\item{M}{Level bound specification ("calibrate" or numeric).}
+
+\item{B}{Slope bound specification ("calibrate" or numeric).}
 
 \item{contdid_args}{List of additional arguments for \code{cont_did()}.}
 }
 \value{
 A list with components: \code{datt}, \code{att}, \code{att_o},
-  \code{slopes}, \code{calibration}, \code{B_hat}, \code{B_values},
-  \code{contdid_fit}.
+  \code{slopes}, \code{calibration}, \code{bounds}, \code{contdid_fit}.
 }
 \description{
 Internal function that calls \code{contdid::cont_did()} and extracts
 per-period dose-response estimates into lpt's data structures.
+}
+\details{
+Calibration uses contdid's own pre-period estimates: in pre-periods the
+dose-resolved ATT profile \code{att.d} estimates the trend deviation
+\eqn{\mu_s(d) - \mu_s(0)} (calibrating M) and the dose-resolved slope
+\code{acrt.d} estimates the selection slope \eqn{\mu'_s(d)}
+(calibrating B).
 }
 \references{
 Callaway B, Goodman-Bacon A, Sant'Anna PHC (2024).

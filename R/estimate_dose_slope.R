@@ -11,6 +11,9 @@
 #'
 #' @param delta_y Numeric vector. First differences \eqn{\Delta Y_i}.
 #' @param dose Numeric vector. Doses \eqn{D_i}. Same length as \code{delta_y}.
+#'   Within \code{\link{lpt}}, only treated units (positive doses) are passed:
+#'   the dose support has a hole between 0 and the smallest positive dose,
+#'   and no smooth fit should bridge it.
 #' @param eval_points Numeric vector or NULL. Dose values at which to evaluate.
 #'   Default: 50 evenly spaced points from 5th to 95th percentile of dose.
 #' @param k Integer. Number of spline basis functions (default: 5).
@@ -38,6 +41,7 @@
 #'            post[, c("commune", "outcome")],
 #'            by = "commune", suffixes = c("_ref", "_post"))
 #' m$delta_y <- m$outcome_post - m$outcome_ref
+#' m <- m[m$dose > 0, ]  # fit on treated units only
 #' result <- estimate_dose_slope(m$delta_y, m$dose)
 #' plot(result$eval_points, result$lambda_d, type = "l")
 #'

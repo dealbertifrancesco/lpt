@@ -1,8 +1,10 @@
 #' Run npiv estimation backend
 #'
 #' Internal function that fits nonparametric B-spline sieve regressions
-#' on pairwise first differences per period, following the same approach
-#' as the GAM backend but using \code{npiv::npiv()} as the estimator.
+#' on long differences per period, following the same approach as the GAM
+#' backend but using \code{npiv::npiv()} as the estimator. Fits are on
+#' treated units only; the untreated reference \eqn{\hat{f}_t(0)} is the
+#' sample mean of the long difference among untreated units.
 #'
 #' @param data Data frame in long format.
 #' @param id_col,time_col,outcome_col,dose_col Column name strings.
@@ -12,13 +14,13 @@
 #' @param ref_period Scalar. Reference (last pre-) period for differencing.
 #' @param has_untreated Logical. Whether untreated units exist.
 #' @param dose_vec Numeric vector of doses from the reference period.
-#' @param B Sensitivity parameter specification ("calibrate" or numeric).
+#' @param M Level bound specification ("calibrate" or numeric).
+#' @param B Slope bound specification ("calibrate" or numeric).
 #' @param eval_points Numeric vector or NULL. Dose grid for evaluation.
 #' @param npiv_args List of additional arguments for \code{npiv()}.
 #'
 #' @return A list with components: \code{datt}, \code{att}, \code{att_o},
-#'   \code{slopes}, \code{calibration}, \code{B_hat}, \code{B_values},
-#'   \code{npiv_fits}.
+#'   \code{slopes}, \code{calibration}, \code{bounds}, \code{npiv_fits}.
 #'
 #' @references
 #' Chen X, Christensen T, Kankanala S (2024).
@@ -29,7 +31,7 @@
 #' @keywords internal
 run_npiv <- function(data, id_col, time_col, outcome_col, dose_col,
                      post_periods, pre_period_set, min_post, ref_period,
-                     has_untreated, dose_vec, B, eval_points, npiv_args) {
+                     has_untreated, dose_vec, M, B, eval_points, npiv_args) {
 
   if (!requireNamespace("npiv", quietly = TRUE)) {
     stop("Package 'npiv' required for method = 'npiv'. ",
@@ -38,9 +40,10 @@ run_npiv <- function(data, id_col, time_col, outcome_col, dose_col,
 
   ref_data <- data[data[[time_col]] == ref_period, ]
 
-  # --- Default eval_points ---
+  # --- Evaluation grid: trimmed interior of the treated dose support ---
   if (is.null(eval_points)) {
-    dose_range <- stats::quantile(dose_vec, probs = c(0.05, 0.95))
+    d_pos <- dose_vec[dose_vec > 0]
+    dose_range <- stats::quantile(d_pos, probs = c(0.05, 0.95))
     eval_points <- seq(dose_range[[1]], dose_range[[2]], length.out = 50)
   }
 
@@ -73,77 +76,27 @@ run_npiv <- function(data, id_col, time_col, outcome_col, dose_col,
     do.call(npiv::npiv, args)
   }
 
-  # --- B calibration from pre-period pairs ---
+  # --- Calibrate / resolve M and B ---
   calibration_result <- NULL
-  B_hat <- NULL
-  B_values <- NULL
-
-  if (is.character(B) && B == "calibrate") {
+  if (wants_calibration(M, B, has_untreated)) {
     if (length(pre_period_set) < 2) {
-      stop("B = 'calibrate' requires at least 2 pre-treatment periods. ",
-           "Supply B as a numeric value, or provide data with more pre-periods.")
+      stop("Calibration requires at least 2 pre-treatment periods. ",
+           "Supply numeric M and B, or provide data with more pre-periods.")
     }
-
-    pre_slopes_list <- list()
-    sup_vals <- numeric(0)
-    pair_labels <- character(0)
-
-    for (j in seq_len(length(pre_period_set) - 1)) {
-      t0 <- pre_period_set[j]
-      t1 <- pre_period_set[j + 1]
-      pair_label <- paste0(t0, "-", t1)
-      pair_labels <- c(pair_labels, pair_label)
-
-      dat_t0 <- data[data[[time_col]] == t0, ]
-      dat_t1 <- data[data[[time_col]] == t1, ]
-
-      merged <- merge(
-        dat_t0[, c(id_col, outcome_col, dose_col), drop = FALSE],
-        dat_t1[, c(id_col, outcome_col), drop = FALSE],
-        by = id_col, suffixes = c("_0", "_1")
-      )
-
-      dy <- merged[[paste0(outcome_col, "_1")]] - merged[[paste0(outcome_col, "_0")]]
-      d_pre <- merged[[dose_col]]
-
-      fit_pre <- fit_one_npiv(dy, d_pre, eval_points)
-
-      pre_slopes_list[[j]] <- data.frame(
-        period_pair = pair_label,
-        d           = eval_points,
-        mu_prime_d  = as.numeric(fit_pre$deriv)
-      )
-      sup_vals <- c(sup_vals, max(abs(fit_pre$deriv)))
-    }
-
-    names(sup_vals) <- pair_labels
-    pre_slopes <- do.call(rbind, pre_slopes_list)
-    rownames(pre_slopes) <- NULL
-
-    B_hat <- max(sup_vals)
-    B_values <- B_hat
-
-    calibration_result <- list(
-      B_hat         = B_hat,
-      pre_slopes    = pre_slopes,
-      sup_by_period = sup_vals
+    calibration_result <- calibrate_bounds_engine(
+      data = data, id_col = id_col, time_col = time_col,
+      outcome_col = outcome_col, dose_col = dose_col,
+      pre_periods = pre_period_set, eval_points = eval_points,
+      fit_fun = function(dy, dd, ep) {
+        f <- fit_one_npiv(dy, dd, ep)
+        list(mean = as.numeric(f$h), deriv = as.numeric(f$deriv))
+      }
     )
-
-    message(sprintf("Calibrated B = %.4f from %d pre-period pair(s) [npiv].",
-                    B_hat, length(sup_vals)))
-
-  } else if (is.numeric(B)) {
-    B_values <- as.numeric(B)
-    if (any(!is.finite(B_values)) || any(B_values < 0)) {
-      stop("B must be non-negative finite numeric values.")
-    }
-    B_hat <- max(B_values)
-  } else {
-    stop("B must be numeric or 'calibrate'.")
   }
+  rb <- resolve_bounds(M, B, calibration_result, has_untreated)
+  announce_calibration(rb, length(pre_period_set) - 1)
 
   # --- Post-period estimation ---
-  D_bar <- mean(dose_vec[dose_vec > 0])
   slopes    <- list()
   npiv_fits <- list()
   datt_all  <- list()
@@ -162,17 +115,14 @@ run_npiv <- function(data, id_col, time_col, outcome_col, dose_col,
 
     dy <- merged[[paste0(outcome_col, "_post")]] - merged[[paste0(outcome_col, "_ref")]]
     wd <- merged[[dose_col]]
+    treated_idx <- wd > 0
+    untreated_idx <- wd == 0
 
-    # Fit npiv on all observations; prepend 0 to eval grid for Lambda_d
-    ep_with_zero <- c(0, eval_points)
-    fit_pp <- fit_one_npiv(dy, wd, ep_with_zero)
+    # Fit on treated units only; untreated enter via their sample mean
+    fit_pp <- fit_one_npiv(dy[treated_idx], wd[treated_idx], eval_points)
 
-    h_all     <- as.numeric(fit_pp$h)
-    deriv_all <- as.numeric(fit_pp$deriv)
-    h_at_zero <- h_all[1]
-    h_at_eval <- h_all[-1]
-    lambda_d  <- deriv_all[-1]
-    Lambda_d  <- h_at_eval - h_at_zero
+    h_at_eval <- as.numeric(fit_pp$h)
+    lambda_d  <- as.numeric(fit_pp$deriv)
 
     npiv_fits[[pp_char]] <- fit_pp
 
@@ -191,7 +141,7 @@ run_npiv <- function(data, id_col, time_col, outcome_col, dose_col,
     mult <- horizon_t + 1L
 
     # IS_{dATT}(d, t; B) = [lambda_t(d) - (t+1)B, lambda_t(d) + (t+1)B]
-    for (b in B_values) {
+    for (b in rb$B_values) {
       datt_all[[length(datt_all) + 1]] <- data.frame(
         period     = pp,
         horizon    = horizon_t,
@@ -203,36 +153,26 @@ run_npiv <- function(data, id_col, time_col, outcome_col, dose_col,
       )
     }
 
-    # IS_{ATT}(d, t; B) = [Lambda_t(d) - (t+1)Bd, Lambda_t(d) + (t+1)Bd]
-    if (has_untreated) {
-      for (b in B_values) {
-        att_all[[length(att_all) + 1]] <- data.frame(
-          period    = pp,
-          horizon   = horizon_t,
-          d         = eval_points,
-          Lambda_d  = Lambda_d,
-          B         = b,
-          att_lower = Lambda_d - mult * b * eval_points,
-          att_upper = Lambda_d + mult * b * eval_points
-        )
-      }
-    }
+    if (has_untreated && length(rb$M_values) > 0) {
+      f_at_zero <- mean(dy[untreated_idx])
+      Lambda_d <- h_at_eval - f_at_zero
 
-    # IS_{ATT^o_t}(B)
-    if (has_untreated) {
-      treated_idx   <- wd > 0
-      untreated_idx <- wd == 0
-      att_o_bin <- mean(dy[treated_idx]) - mean(dy[untreated_idx])
+      # IS_{ATT}(d, t; M) = [Lambda_t(d) - (t+1)M, Lambda_t(d) + (t+1)M]
+      att_all[[length(att_all) + 1]] <- compute_att_bounds(
+        eval_points = eval_points, Lambda_d = Lambda_d,
+        M_values = rb$M_values, period = pp, horizon = horizon_t
+      )
 
-      for (b in B_values) {
+      # IS_{ATT^o_t}(M)
+      att_o_bin <- mean(dy[treated_idx]) - f_at_zero
+      for (m in rb$M_values) {
         att_o_all[[length(att_o_all) + 1]] <- data.frame(
           period      = pp,
           horizon     = horizon_t,
           att_o_bin   = att_o_bin,
-          D_bar       = D_bar,
-          B           = b,
-          att_o_lower = att_o_bin - mult * b * D_bar,
-          att_o_upper = att_o_bin + mult * b * D_bar
+          M           = m,
+          att_o_lower = att_o_bin - mult * m,
+          att_o_upper = att_o_bin + mult * m
         )
       }
     }
@@ -251,8 +191,7 @@ run_npiv <- function(data, id_col, time_col, outcome_col, dose_col,
     att_o       = att_o,
     slopes      = slopes,
     calibration = calibration_result,
-    B_hat       = B_hat,
-    B_values    = B_values,
+    bounds      = rb,
     npiv_fits   = npiv_fits
   )
 }

@@ -9,7 +9,10 @@ estimate_dose_slope(delta_y, dose, eval_points = NULL, k = 5, spline_bs = "cr")
 \arguments{
 \item{delta_y}{Numeric vector. First differences \eqn{\Delta Y_i}.}
 
-\item{dose}{Numeric vector. Doses \eqn{D_i}. Same length as \code{delta_y}.}
+\item{dose}{Numeric vector. Doses \eqn{D_i}. Same length as \code{delta_y}.
+Within \code{\link{lpt}}, only treated units (positive doses) are passed:
+the dose support has a hole between 0 and the smallest positive dose,
+and no smooth fit should bridge it.}
 
 \item{eval_points}{Numeric vector or NULL. Dose values at which to evaluate.
 Default: 50 evenly spaced points from 5th to 95th percentile of dose.}
@@ -46,6 +49,7 @@ m <- merge(ref[, c("commune", "outcome", "dose")],
            post[, c("commune", "outcome")],
            by = "commune", suffixes = c("_ref", "_post"))
 m$delta_y <- m$outcome_post - m$outcome_ref
+m <- m[m$dose > 0, ]  # fit on treated units only
 result <- estimate_dose_slope(m$delta_y, m$dose)
 plot(result$eval_points, result$lambda_d, type = "l")
 

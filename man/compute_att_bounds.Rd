@@ -4,27 +4,30 @@
 \alias{compute_att_bounds}
 \title{Compute ATT level bounds}
 \usage{
-compute_att_bounds(slope_result, B_values, dose, period = NA, horizon = 0L)
+compute_att_bounds(eval_points, Lambda_d, M_values, period = NA, horizon = 0L)
 }
 \arguments{
-\item{slope_result}{Output from \code{\link{estimate_dose_slope}}.}
+\item{eval_points}{Numeric vector. Dose grid.}
 
-\item{B_values}{Numeric vector of sensitivity parameter values.}
+\item{Lambda_d}{Numeric vector. DiD estimand \eqn{\hat\Lambda_t(d) =
+\hat{f}_t(d) - \hat{f}_t(0)} at each grid point, where
+\eqn{\hat{f}_t(0)} is the untreated sample mean of the long difference.}
 
-\item{dose}{Numeric vector of observed doses.}
+\item{M_values}{Numeric vector of level-bound values.}
 
 \item{period}{Scalar. The post-period label for this estimate.}
 
-\item{horizon}{Integer. Horizon index (0 = first post-period). The identified
-set width is multiplied by \code{(horizon + 1)} to account for accumulated
-selection drift across post-treatment periods.}
+\item{horizon}{Integer. Horizon index (0 = first post-period).}
 }
 \value{
 A data frame with columns: \code{period}, \code{horizon}, \code{d},
-  \code{Lambda_d}, \code{B}, \code{att_lower}, \code{att_upper}.
+  \code{Lambda_d}, \code{M}, \code{att_lower}, \code{att_upper}.
 }
 \description{
-Computes the identified set for \eqn{ATT(d,t|d)} under Local Parallel Trends:
-\eqn{IS_{ATT}(d, t; B) = [\Lambda_t(d) - (t+1)Bd, \Lambda_t(d) + (t+1)Bd]}.
+Computes the identified set for \eqn{ATT(d,t|d)} under the level
+restriction (bounded trend deviations, \eqn{|\mu_t(d) - \mu_t(0)| \le M}):
+\eqn{IS_{ATT}(d, t; M) = [\Lambda_t(d) - (t+1)M, \Lambda_t(d) + (t+1)M]}.
+The set widens linearly in the horizon: each post period contributes
+another M of counterfactual drift.
 }
 \keyword{internal}

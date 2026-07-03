@@ -16,6 +16,7 @@ run_npiv(
   ref_period,
   has_untreated,
   dose_vec,
+  M,
   B,
   eval_points,
   npiv_args
@@ -38,7 +39,9 @@ run_npiv(
 
 \item{dose_vec}{Numeric vector of doses from the reference period.}
 
-\item{B}{Sensitivity parameter specification ("calibrate" or numeric).}
+\item{M}{Level bound specification ("calibrate" or numeric).}
+
+\item{B}{Slope bound specification ("calibrate" or numeric).}
 
 \item{eval_points}{Numeric vector or NULL. Dose grid for evaluation.}
 
@@ -46,13 +49,14 @@ run_npiv(
 }
 \value{
 A list with components: \code{datt}, \code{att}, \code{att_o},
-  \code{slopes}, \code{calibration}, \code{B_hat}, \code{B_values},
-  \code{npiv_fits}.
+  \code{slopes}, \code{calibration}, \code{bounds}, \code{npiv_fits}.
 }
 \description{
 Internal function that fits nonparametric B-spline sieve regressions
-on pairwise first differences per period, following the same approach
-as the GAM backend but using \code{npiv::npiv()} as the estimator.
+on long differences per period, following the same approach as the GAM
+backend but using \code{npiv::npiv()} as the estimator. Fits are on
+treated units only; the untreated reference \eqn{\hat{f}_t(0)} is the
+sample mean of the long difference among untreated units.
 }
 \references{
 Chen X, Christensen T, Kankanala S (2024).

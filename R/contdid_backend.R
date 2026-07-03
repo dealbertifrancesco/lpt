@@ -3,6 +3,12 @@
 #' Internal function that calls \code{contdid::cont_did()} and extracts
 #' per-period dose-response estimates into lpt's data structures.
 #'
+#' Calibration uses contdid's own pre-period estimates: in pre-periods the
+#' dose-resolved ATT profile \code{att.d} estimates the trend deviation
+#' \eqn{\mu_s(d) - \mu_s(0)} (calibrating M) and the dose-resolved slope
+#' \code{acrt.d} estimates the selection slope \eqn{\mu'_s(d)}
+#' (calibrating B).
+#'
 #' @param data Data frame in long format.
 #' @param id_col,time_col,outcome_col,dose_col Column name strings.
 #' @param post_periods Sorted numeric vector of post-period identifiers.
@@ -10,12 +16,12 @@
 #' @param min_post Minimum post-period value.
 #' @param has_untreated Logical. Whether untreated units exist.
 #' @param dose_vec Numeric vector of doses from the reference period.
-#' @param B Sensitivity parameter specification ("calibrate" or numeric).
+#' @param M Level bound specification ("calibrate" or numeric).
+#' @param B Slope bound specification ("calibrate" or numeric).
 #' @param contdid_args List of additional arguments for \code{cont_did()}.
 #'
 #' @return A list with components: \code{datt}, \code{att}, \code{att_o},
-#'   \code{slopes}, \code{calibration}, \code{B_hat}, \code{B_values},
-#'   \code{contdid_fit}.
+#'   \code{slopes}, \code{calibration}, \code{bounds}, \code{contdid_fit}.
 #'
 #' @references
 #' Callaway B, Goodman-Bacon A, Sant'Anna PHC (2024).
@@ -25,7 +31,7 @@
 #' @keywords internal
 run_contdid <- function(data, id_col, time_col, outcome_col, dose_col,
                         post_periods, pre_period_set, min_post,
-                        has_untreated, dose_vec, B, contdid_args) {
+                        has_untreated, dose_vec, M, B, contdid_args) {
 
   if (!requireNamespace("contdid", quietly = TRUE)) {
     stop("Package 'contdid' required for method = 'contdid'. ",
@@ -79,8 +85,10 @@ run_contdid <- function(data, id_col, time_col, outcome_col, dose_col,
   eval_points <- as.numeric(cd_fit$ptep$dvals)
 
   period_data <- list()          # keyed by original lpt period
-  pre_slopes_list <- list()      # for calibration / pretrends plot
-  sup_vals <- numeric(0)
+  pre_slopes_list <- list()      # pre-period selection slopes (calibrate B)
+  pre_dev_list <- list()         # pre-period trend deviations (calibrate M)
+  sup_slope <- numeric(0)
+  sup_dev <- numeric(0)
   pre_labels <- character(0)
 
   for (i in seq_len(n_gt)) {
@@ -100,17 +108,22 @@ run_contdid <- function(data, id_col, time_col, outcome_col, dose_col,
       acrt_overall = as.numeric(extra$acrt.overall)
     )
 
-    # Pre-period: collect for B calibration
+    # Pre-period: collect for M and B calibration
     if (orig_period < min_post) {
       lbl <- as.character(orig_period)
       pre_labels <- c(pre_labels, lbl)
-      sup_val <- max(abs(extra$acrt.d))
-      sup_vals <- c(sup_vals, sup_val)
+      sup_slope <- c(sup_slope, max(abs(extra$acrt.d)))
+      sup_dev <- c(sup_dev, max(abs(extra$att.d)))
 
       pre_slopes_list[[length(pre_slopes_list) + 1]] <- data.frame(
         period_pair = lbl,
         d           = eval_points,
         mu_prime_d  = as.numeric(extra$acrt.d)
+      )
+      pre_dev_list[[length(pre_dev_list) + 1]] <- data.frame(
+        period_pair = lbl,
+        d           = eval_points,
+        deviation   = as.numeric(extra$att.d)
       )
     }
   }
@@ -119,43 +132,35 @@ run_contdid <- function(data, id_col, time_col, outcome_col, dose_col,
     stop("contdid returned no dose-resolved data for any period.")
   }
 
-  # --- Handle B ---
+  # --- Calibrate / resolve M and B ---
   calibration_result <- NULL
-
-  if (is.character(B) && B == "calibrate") {
-    if (length(sup_vals) < 1) {
-      stop("B = 'calibrate' with method = 'contdid' requires pre-period data. ",
+  if (wants_calibration(M, B, has_untreated)) {
+    if (length(sup_slope) < 1) {
+      stop("Calibration with method = 'contdid' requires pre-period data. ",
            "Ensure pre_periods covers at least two pre-treatment periods.")
     }
-    names(sup_vals) <- pre_labels
+    names(sup_slope) <- pre_labels
+    names(sup_dev) <- pre_labels
 
     pre_slopes <- do.call(rbind, pre_slopes_list)
     rownames(pre_slopes) <- NULL
-
-    B_hat <- max(sup_vals)
-    B_values <- B_hat
+    pre_deviations <- do.call(rbind, pre_dev_list)
+    rownames(pre_deviations) <- NULL
 
     calibration_result <- list(
-      B_hat          = B_hat,
-      pre_slopes     = pre_slopes,
-      sup_by_period  = sup_vals
+      M_hat               = if (has_untreated) max(sup_dev) else NA_real_,
+      B_hat               = max(sup_slope),
+      pre_deviations      = if (has_untreated) pre_deviations else NULL,
+      pre_slopes          = pre_slopes,
+      sup_dev_by_period   = if (has_untreated) sup_dev else NULL,
+      sup_slope_by_period = sup_slope,
+      eval_points         = eval_points
     )
-
-    message(sprintf("Calibrated B = %.4f from %d pre-period(s) [contdid].",
-                    B_hat, length(sup_vals)))
-
-  } else if (is.numeric(B)) {
-    B_values <- as.numeric(B)
-    if (any(!is.finite(B_values)) || any(B_values < 0)) {
-      stop("B must be non-negative finite numeric values.")
-    }
-    B_hat <- max(B_values)
-  } else {
-    stop("B must be numeric or 'calibrate'.")
   }
+  rb <- resolve_bounds(M, B, calibration_result, has_untreated)
+  announce_calibration(rb, length(pre_labels))
 
   # --- Construct identified sets per post-period ---
-  D_bar <- mean(dose_vec[dose_vec > 0])
   datt_all <- list()
   att_all  <- list()
   att_o_all <- list()
@@ -167,8 +172,8 @@ run_contdid <- function(data, id_col, time_col, outcome_col, dose_col,
     horizon_t <- as.integer(pp - min_post)
     mult <- horizon_t + 1L
 
-    # IS_{dATT}
-    for (b in B_values) {
+    # IS_{dATT}(d, t; B)
+    for (b in rb$B_values) {
       datt_all[[length(datt_all) + 1]] <- data.frame(
         period     = pp,
         horizon    = horizon_t,
@@ -180,32 +185,22 @@ run_contdid <- function(data, id_col, time_col, outcome_col, dose_col,
       )
     }
 
-    # IS_{ATT}  (Lambda_d comes directly from contdid's att.d)
-    if (has_untreated) {
-      for (b in B_values) {
-        att_all[[length(att_all) + 1]] <- data.frame(
-          period    = pp,
-          horizon   = horizon_t,
-          d         = eval_points,
-          Lambda_d  = pd$att_d,
-          B         = b,
-          att_lower = pd$att_d - mult * b * eval_points,
-          att_upper = pd$att_d + mult * b * eval_points
-        )
-      }
-    }
+    if (has_untreated && length(rb$M_values) > 0) {
+      # IS_{ATT}(d, t; M)  (Lambda_d comes directly from contdid's att.d)
+      att_all[[length(att_all) + 1]] <- compute_att_bounds(
+        eval_points = eval_points, Lambda_d = pd$att_d,
+        M_values = rb$M_values, period = pp, horizon = horizon_t
+      )
 
-    # IS_{ATT^o}
-    if (has_untreated) {
-      for (b in B_values) {
+      # IS_{ATT^o_t}(M)
+      for (m in rb$M_values) {
         att_o_all[[length(att_o_all) + 1]] <- data.frame(
-          period     = pp,
-          horizon    = horizon_t,
-          att_o_bin  = pd$att_overall,
-          D_bar      = D_bar,
-          B          = b,
-          att_o_lower = pd$att_overall - mult * b * D_bar,
-          att_o_upper = pd$att_overall + mult * b * D_bar
+          period      = pp,
+          horizon     = horizon_t,
+          att_o_bin   = pd$att_overall,
+          M           = m,
+          att_o_lower = pd$att_overall - mult * m,
+          att_o_upper = pd$att_overall + mult * m
         )
       }
     }
@@ -240,8 +235,7 @@ run_contdid <- function(data, id_col, time_col, outcome_col, dose_col,
     att_o       = att_o,
     slopes      = slopes,
     calibration = calibration_result,
-    B_hat       = B_hat,
-    B_values    = B_values,
+    bounds      = rb,
     contdid_fit = cd_fit
   )
 }

@@ -12,6 +12,7 @@ lpt(
   dose_col,
   post_period,
   pre_periods = NULL,
+  M = "calibrate",
   B = "calibrate",
   method = c("gam", "contdid", "npiv", "kernel"),
   contdid_args = list(),
@@ -38,14 +39,24 @@ If a vector, estimation is done separately for each post-period using
 long differences from the reference period.}
 
 \item{pre_periods}{Vector or NULL. Identifiers for pre-treatment periods
-(used for calibrating B). If NULL (default), all periods before the earliest
-post-period are used.}
+(used for calibrating M and B). If NULL (default), all periods before the
+earliest post-period are used.}
 
-\item{B}{Numeric scalar, numeric vector, or \code{"calibrate"}. Sensitivity
-parameter bounding the selection slope \eqn{|\mu'(d)| \leq B}. If
-\code{"calibrate"}, estimated from pre-treatment periods. If 0, standard
-parallel trends (point identification). If a numeric vector, bounds are
-computed for each value (sensitivity analysis). Default: \code{"calibrate"}.}
+\item{M}{Numeric scalar, numeric vector, or \code{"calibrate"}. Level
+sensitivity parameter bounding trend deviations,
+\eqn{|\mu_t(d) - \mu_t(0)| \leq M} (Assumption L). Governs identified
+sets for \eqn{ATT(d,t|d)} and \eqn{ATT^o}. If \code{"calibrate"},
+estimated from pre-treatment periods. If 0, standard parallel trends
+(point identification of levels). If a numeric vector, bounds are
+computed for each value (sensitivity analysis). Requires untreated
+units; ignored otherwise. Default: \code{"calibrate"}.}
+
+\item{B}{Numeric scalar, numeric vector, or \code{"calibrate"}. Slope
+sensitivity parameter bounding the selection slope
+\eqn{|\mu'_t(d)| \leq B} on the interior of the treated dose support
+(Assumption S). Governs identified sets for the dose-response
+derivative only. If \code{"calibrate"}, estimated from pre-treatment
+periods. Default: \code{"calibrate"}.}
 
 \item{method}{Character. Estimation method: \code{"gam"} (default, penalized
 splines via \code{mgcv}), \code{"contdid"} (B-splines via the
@@ -78,7 +89,9 @@ by \eqn{n^{2/35}} for derivative estimation (Fan & Gijbels, 1996).
 Ignored when \code{method != "kernel"}.}
 
 \item{eval_points}{Numeric vector or NULL. Dose grid for evaluation.
-Default: 50 points over 5th-95th percentile of dose. Ignored when
+Default: 50 points over the 5th-95th percentile of \emph{positive}
+doses — a trimmed interior of the treated support, where spline
+derivative estimates are reliable. Ignored when
 \code{method = "contdid"} (determined by contdid internally).
 Used by \code{"gam"}, \code{"npiv"}, and \code{"kernel"} methods.}
 
@@ -94,23 +107,30 @@ An S3 object of class \code{"lpt"} containing:
     \item{datt}{Data frame with columns \code{period}, \code{horizon},
       \code{d}, \code{lambda_d}, \code{B}, \code{datt_lower},
       \code{datt_upper}. Identified set width is \code{2*(horizon+1)*B}.}
-    \item{att}{Data frame with ATT level bounds (NULL if no untreated units).
-      Includes \code{horizon} column; width is \code{2*(horizon+1)*B*d}.}
-    \item{att_o}{Data frame with per-period overall ATT summary.
-      Includes \code{horizon} column; width is
-      \code{2*(horizon+1)*B*D_bar}. NULL if no untreated units.}
-    \item{att_o_agg}{Data frame with time-aggregated overall ATT across
-      all requested post-periods. NULL if single post-period or no
-      untreated units.}
+    \item{att}{Data frame with ATT level bounds (NULL if no untreated
+      units). Columns \code{period}, \code{horizon}, \code{d},
+      \code{Lambda_d}, \code{M}, \code{att_lower}, \code{att_upper};
+      width is \code{2*(horizon+1)*M}, constant across doses.}
+    \item{att_o}{Data frame with per-period overall ATT summary. Columns
+      \code{period}, \code{horizon}, \code{att_o_bin}, \code{M},
+      \code{att_o_lower}, \code{att_o_upper}; width is
+      \code{2*(horizon+1)*M}. NULL if no untreated units.}
+    \item{att_o_agg}{Data frame with the time-aggregated overall ATT
+      across all requested post-periods; half-width is
+      \code{mean(horizon+1)*M} (equal to \code{(T+2)/2*M} for contiguous
+      horizons 0..T). NULL if single post-period or no untreated units.}
     \item{pre_att_o}{Data frame with pre-period binary DiD estimates
       (columns \code{period}, \code{att_o_bin}). Used by the event study
       plot. NULL if no untreated units or fewer than 2 pre-periods.}
-    \item{B_hat}{The primary sensitivity parameter used.}
+    \item{M_hat}{The primary level bound used (NA if no untreated units).}
+    \item{M_values}{All M values computed.}
+    \item{B_hat}{The primary slope bound used.}
     \item{B_values}{All B values computed.}
-    \item{calibration}{Output from \code{\link{calibrate_B}} if calibration
-      was used.}
+    \item{M_source, B_source}{\code{"calibrated"} or \code{"user-supplied"}.}
+    \item{calibration}{Output from \code{\link{calibrate_bounds}} if
+      calibration was used.}
     \item{slopes}{Named list of \code{\link{estimate_dose_slope}} results,
-      one per post-period.}
+      one per post-period (fit on treated units only).}
     \item{call}{The matched call.}
     \item{n}{Number of units in estimation sample.}
     \item{has_untreated}{Logical. Whether untreated units (D=0) exist.}
@@ -127,30 +147,52 @@ An S3 object of class \code{"lpt"} containing:
   }
 }
 \description{
-Estimates identified sets for \eqn{\partial ATT(d|d)/\partial d} and
-\eqn{ATT(d|d)} under the Local Parallel Trends assumption in
-continuous difference-in-differences designs.
+Estimates identified sets for treatment-effect levels and dose-response
+slopes in continuous difference-in-differences designs under local
+restrictions on counterfactual trends. A level restriction (bound M on
+trend deviations) delivers identified sets for \eqn{ATT(d,t|d)} and the
+overall summary \eqn{ATT^o}; a separate slope restriction (bound B on
+selection slopes) delivers identified sets for the dose-response
+derivative \eqn{\partial ATT(d,t|d)/\partial d}.
 }
 \details{
-The key decomposition is:
-\deqn{\lambda(d) = \partial ATT(d|d)/\partial d + \mu'(d)}
-where \eqn{\lambda(d)} is the observable dose-slope and \eqn{\mu'(d)} is
-the unobservable selection slope bounded by B.
-
-Under LPT (\eqn{|\mu'(d)| \leq B}):
+Let \eqn{\mu_t(d) = E[\Delta Y_t(0) | D = d]} denote the per-period
+untreated trend conditional on dose (the selection function), and let
+\eqn{\Lambda_t(d) = E[Y_t - Y_{ref} | D=d] - E[Y_t - Y_{ref} | D=0]} be
+the horizon-t DiD estimand with \eqn{\lambda_t(d)} its dose derivative.
+Two logically independent assumptions bound the selection function:
 \itemize{
-  \item \eqn{IS_{\partial ATT}(d; B) = [\lambda(d) - B, \lambda(d) + B]}
-  \item \eqn{IS_{ATT}(d; B) = [\Lambda(d) - Bd, \Lambda(d) + Bd]}
-  \item \eqn{IS_{ATT^o}(B) = [ATT^o_{bin} - B \bar{D}_+, ATT^o_{bin} + B \bar{D}_+]}
+  \item \strong{Level (Assumption L):} \eqn{|\mu_t(d) - \mu_t(0)| \leq M}
+    for all \eqn{d} in the treated support. Then
+    \deqn{IS_{ATT}(d, t; M) = [\Lambda_t(d) - (t+1)M,\
+      \Lambda_t(d) + (t+1)M].}
+  \item \strong{Slope (Assumption S):} \eqn{|\mu'_t(d)| \leq B} on the
+    interior of the treated support. Then
+    \deqn{IS_{\partial ATT}(d, t; B) = [\lambda_t(d) - (t+1)B,\
+      \lambda_t(d) + (t+1)B].}
 }
-where \eqn{\Lambda(d) = E[\Delta Y | D=d] - E[\Delta Y | D=0]} and
-\eqn{ATT^o_{bin} = E[\Delta Y | D>0] - E[\Delta Y | D=0]}.
+Identified sets widen linearly in the horizon because each post period
+contributes another unit of counterfactual drift. The time-aggregated
+summary \eqn{ATT^o} has identified set
+\eqn{[\bar\Lambda^{agg} \mp \frac{T+2}{2} M]} for contiguous horizons
+0..T. Setting \eqn{M = 0} (resp. \eqn{B = 0}) recovers point
+identification under standard parallel trends for the corresponding
+target. Neither assumption implies the other: a slope bound does not
+control the deviation between treated doses and the untreated group,
+because the dose support has a hole at \eqn{(0, d_l)} which no
+within-support restriction can bridge.
+
+Estimation follows the pipeline of the accompanying paper: conditional
+means and derivatives are fit on \strong{treated units only} (no smooth
+fit bridges the support gap), \eqn{\hat{f}_t(0)} is the sample mean of
+the long difference among untreated units, and all evaluations are on a
+grid in a trimmed interior of the treated dose support.
 }
 \examples{
 data(sru)
 fit <- lpt(sru, "commune", "year", "outcome", "dose",
            post_period = 0:5, pre_periods = -7:-1,
-           B = "calibrate")
+           M = "calibrate", B = "calibrate")
 fit
 
 }
@@ -158,6 +200,10 @@ fit
 Callaway B, Goodman-Bacon A, Sant'Anna PHC (2024).
 \dQuote{Difference-in-differences with a continuous treatment.}
 \emph{National Bureau of Economic Research}.
+
+Rambachan A, Roth J (2023).
+\dQuote{A More Credible Approach to Parallel Trends.}
+\emph{Review of Economic Studies}, \strong{90}(5), 2555--2591.
 
 Wood SN (2017).
 \emph{Generalized Additive Models: An Introduction with R} (2nd ed.).

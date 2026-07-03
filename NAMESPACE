@@ -3,6 +3,6 @@
 S3method(plot,lpt)
 S3method(print,lpt)
 S3method(summary,lpt)
-export(calibrate_B)
+export(calibrate_bounds)
 export(estimate_dose_slope)
 export(lpt)

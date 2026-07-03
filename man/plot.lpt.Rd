@@ -10,6 +10,7 @@
   period = NULL,
   d0 = NULL,
   B_grid = NULL,
+  M_grid = NULL,
   estimand = c("att_o", "datt", "att"),
   true_curve = NULL,
   ...
@@ -28,13 +29,19 @@ multiple post-periods exist, plots all periods faceted. Default: NULL.}
 or \code{"att"}. The identified set for these estimands depends on the
 chosen dose level; no default is provided. Ignored for \code{"att_o"}.}
 
-\item{B_grid}{Numeric vector or NULL. Grid of B values for sensitivity plot.
+\item{B_grid}{Numeric vector or NULL. Grid of B values for the
+\code{"datt"} sensitivity plot.
 Default: \code{seq(0, 3 * B_hat, length.out = 50)}.}
 
+\item{M_grid}{Numeric vector or NULL. Grid of M values for the
+\code{"att"} and \code{"att_o"} sensitivity plots.
+Default: \code{seq(0, 3 * M_hat, length.out = 50)}.}
+
 \item{estimand}{Character. Estimand for the sensitivity plot:
-\code{"att_o"} (default, overall ATT \eqn{ATT^o}; no \code{d0} needed),
-\code{"datt"} (dose-response slope \eqn{\partial ATT/\partial d} at
-\code{d0}), or \code{"att"} (ATT level \eqn{ATT(d|d)} at \code{d0}).
+\code{"att_o"} (default, overall ATT \eqn{ATT^o}; no \code{d0} needed;
+traces M), \code{"datt"} (dose-response slope
+\eqn{\partial ATT/\partial d} at \code{d0}; traces B), or \code{"att"}
+(ATT level \eqn{ATT(d|d)} at \code{d0}; traces M).
 Only used when \code{type = "sensitivity"}.}
 
 \item{true_curve}{Function or NULL. If provided, a function \code{f(d)} that
@@ -53,7 +60,7 @@ and sensitivity analysis.
 \examples{
 data(sru)
 fit <- lpt(sru, "commune", "year", "outcome", "dose",
-           post_period = 5, pre_periods = -7:-1, B = 0)
+           post_period = 5, pre_periods = -7:-1, M = 0, B = 0)
 if (requireNamespace("ggplot2", quietly = TRUE)) {
   plot(fit, type = "datt")
 }

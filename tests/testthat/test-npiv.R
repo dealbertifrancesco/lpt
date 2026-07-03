@@ -4,7 +4,7 @@ test_that("lpt with method='npiv' produces valid lpt object", {
   data(sru, package = "lpt")
   fit <- lpt(sru, "commune", "year", "outcome", "dose",
              post_period = 0:5, pre_periods = -7:-1,
-             B = "calibrate", method = "npiv")
+             M = "calibrate", B = "calibrate", method = "npiv")
 
   expect_s3_class(fit, "lpt")
 
@@ -15,23 +15,29 @@ test_that("lpt with method='npiv' produces valid lpt object", {
   expect_true(!is.null(fit$npiv_fits))
   expect_null(fit$contdid_fit)
   expect_gt(fit$B_hat, 0)
+  expect_gt(fit$M_hat, 0)
 
   # datt has expected columns
   expect_true(all(c("period", "horizon", "d", "lambda_d", "B",
                      "datt_lower", "datt_upper") %in% names(fit$datt)))
 
-  # att has expected columns
-  expect_true(all(c("period", "horizon", "d", "Lambda_d", "B",
+  # att has expected columns (bounded by M)
+  expect_true(all(c("period", "horizon", "d", "Lambda_d", "M",
                      "att_lower", "att_upper") %in% names(fit$att)))
 
-  # att_o has expected columns
-  expect_true(all(c("period", "horizon", "att_o_bin", "D_bar", "B",
+  # att_o has expected columns (bounded by M)
+  expect_true(all(c("period", "horizon", "att_o_bin", "M",
                      "att_o_lower", "att_o_upper") %in% names(fit$att_o)))
 
   # Identified sets widen with B
   datt_B <- fit$datt[fit$datt$period == 0, ]
   widths <- datt_B$datt_upper - datt_B$datt_lower
   expect_true(all(widths > 0))
+
+  # ATT IS width is constant across doses: 2*(t+1)*M
+  att_h0 <- fit$att[fit$att$period == 0, ]
+  att_widths <- att_h0$att_upper - att_h0$att_lower
+  expect_true(all(abs(att_widths - 2 * fit$M_hat) < 1e-10))
 
   # Multiple post-periods present
   expect_equal(length(unique(fit$datt$period)), 6)
@@ -43,20 +49,24 @@ test_that("lpt with method='npiv' produces valid lpt object", {
   expect_equal(fit$specifications$method, "npiv")
 })
 
-test_that("npiv calibration produces pre_slopes for pretrends plot", {
+test_that("npiv calibration produces deviations and slopes", {
   skip_if_not_installed("npiv")
 
   data(sru, package = "lpt")
   fit <- lpt(sru, "commune", "year", "outcome", "dose",
              post_period = 5, pre_periods = -7:-1,
-             B = "calibrate", method = "npiv")
+             M = "calibrate", B = "calibrate", method = "npiv")
 
   # Calibration output matches expected structure
   expect_true(!is.null(fit$calibration))
   expect_true(!is.null(fit$calibration$pre_slopes))
   expect_true(all(c("period_pair", "d", "mu_prime_d")
                     %in% names(fit$calibration$pre_slopes)))
-  expect_equal(length(fit$calibration$sup_by_period), 6)
+  expect_true(!is.null(fit$calibration$pre_deviations))
+  expect_true(all(c("period_pair", "d", "deviation")
+                    %in% names(fit$calibration$pre_deviations)))
+  expect_equal(length(fit$calibration$sup_slope_by_period), 6)
+  expect_equal(length(fit$calibration$sup_dev_by_period), 6)
 })
 
 test_that("npiv plots do not error", {
@@ -66,7 +76,7 @@ test_that("npiv plots do not error", {
   data(sru, package = "lpt")
   fit <- lpt(sru, "commune", "year", "outcome", "dose",
              post_period = 0:5, pre_periods = -7:-1,
-             B = "calibrate", method = "npiv")
+             M = "calibrate", B = "calibrate", method = "npiv")
 
   expect_no_error(plot(fit, type = "datt"))
   expect_no_error(plot(fit, type = "att"))
@@ -75,21 +85,23 @@ test_that("npiv plots do not error", {
   expect_no_error(plot(fit, type = "sensitivity"))
 })
 
-test_that("npiv with numeric B works", {
+test_that("npiv with numeric M and B works", {
   skip_if_not_installed("npiv")
 
   data(sru, package = "lpt")
   fit <- lpt(sru, "commune", "year", "outcome", "dose",
              post_period = 5, pre_periods = -7:-1,
-             B = 0, method = "npiv")
+             M = 0, B = 0, method = "npiv")
 
   expect_s3_class(fit, "lpt")
   expect_equal(fit$B_hat, 0)
+  expect_equal(fit$M_hat, 0)
 
-  # With B=0, IS width should be 0
+  # With B=0 / M=0, IS widths should be 0
   expect_true(all(abs(fit$datt$datt_upper - fit$datt$datt_lower) < 1e-10))
+  expect_true(all(abs(fit$att$att_upper - fit$att$att_lower) < 1e-10))
 
-  # Calibration should be NULL
+  # Calibration should be NULL when both bounds are numeric
   expect_null(fit$calibration)
 })
 
@@ -101,7 +113,7 @@ test_that("npiv_args are forwarded correctly", {
   # Custom J.x.segments
   fit <- lpt(sru, "commune", "year", "outcome", "dose",
              post_period = 0, pre_periods = -7:-1,
-             B = "calibrate", method = "npiv",
+             M = 0, B = 0, method = "npiv",
              npiv_args = list(J.x.segments = 3))
 
   expect_s3_class(fit, "lpt")
@@ -117,7 +129,7 @@ test_that("npiv slopes are compatible with dose_slope class", {
   data(sru, package = "lpt")
   fit <- lpt(sru, "commune", "year", "outcome", "dose",
              post_period = 0, pre_periods = -7:-1,
-             B = "calibrate", method = "npiv")
+             M = 0, B = 0, method = "npiv")
 
   # Slopes list should have one entry per post-period
   expect_equal(length(fit$slopes), 1)
