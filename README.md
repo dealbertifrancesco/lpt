@@ -36,12 +36,6 @@ the horizon-$t$ DiD estimand and $\lambda_t(d)$ its dose derivative. The
 identified sets widen linearly with the horizon because each additional
 post-period accumulates one more unit of potential counterfactual drift.
 
-Neither assumption implies the other: the dose support has a hole between 0
-and the smallest positive dose, so a within-support Lipschitz condition
-cannot control the deviation from the untreated group without extrapolating
-across the gap. This is why levels get their own parameter $M$ instead of a
-dose-proportional bound derived from $B$.
-
 The package also computes the **time-aggregated** overall ATT across all
 requested post-periods ($ATT^o$), with identified set
 
@@ -104,8 +98,7 @@ used.
 ### Alternative backend: contdid
 
 The `method = "contdid"` option uses B-spline estimation from
-[Callaway, Goodman-Bacon & Sant'Anna (2024)](https://doi.org/10.3386/w32117)
-instead of GAM-based penalized splines:
+[Callaway, Goodman-Bacon & Sant'Anna (2024)](https://doi.org/10.3386/w32117):
 
 ```r
 fit_cd <- lpt(sru, "commune", "year", "outcome", "dose",
